@@ -30,8 +30,12 @@ export default function UploadPage() {
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Processing failed.");
+        const contentType = res.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+          const data = await res.json();
+          throw new Error(data.error || "Processing failed.");
+        }
+        throw new Error(`Server error (${res.status}). Please try again.`);
       }
 
       // Download the returned .docx file

@@ -4,7 +4,9 @@ import { SYSTEM_PROMPT } from "@/lib/system-prompt";
 import { generateAccessibleDocx } from "@/lib/generate-docx";
 import Anthropic from "@anthropic-ai/sdk";
 import mammoth from "mammoth";
-import { PDFParse } from "pdf-parse";
+
+// Allow up to 60 seconds for AI processing
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   // Verify authentication
@@ -34,6 +36,8 @@ export async function POST(request: NextRequest) {
       const result = await mammoth.extractRawText({ buffer });
       extractedText = result.value;
     } else if (fileName.endsWith(".pdf")) {
+      // Dynamic import to avoid loading pdfjs-dist in serverless when not needed
+      const { PDFParse } = await import("pdf-parse");
       const parser = new PDFParse({ data: buffer });
       const pdfData = await parser.getText();
       extractedText = pdfData.text;
@@ -74,8 +78,14 @@ export async function POST(request: NextRequest) {
     // Parse the JSON response from the AI
     let accessibleDoc;
     try {
-      accessibleDoc = JSON.parse(responseText);
+      // Strip markdown code fences if the AI wraps the JSON
+      const cleaned = responseText
+        .replace(/^```(?:json)?\s*/i, "")
+        .replace(/\s*```$/i, "")
+        .trim();
+      accessibleDoc = JSON.parse(cleaned);
     } catch {
+      console.error("AI response was not valid JSON:", responseText.slice(0, 500));
       return NextResponse.json(
         { error: "AI returned invalid JSON. Please try again." },
         { status: 500 }
@@ -96,9 +106,8 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Processing error:", error);
-    return NextResponse.json(
-      { error: "An error occurred while processing the syllabus." },
-      { status: 500 }
-    );
+    const message =
+      error instanceof Error ? error.message : "An error occurred while processing the syllabus.";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
