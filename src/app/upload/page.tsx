@@ -15,12 +15,6 @@ type Status =
   | "done"
   | "error";
 
-const STATUS_MESSAGES: Record<string, string> = {
-  uploading: "Uploading file...",
-  processing: "Processing Accessibility Updates...",
-  generating: "Generating accessible document...",
-};
-
 export default function UploadPage() {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
@@ -32,7 +26,7 @@ export default function UploadPage() {
 
     setFileName(file.name);
     setError("");
-    setStatus("uploading");
+    setStatus("processing");
 
     const formData = new FormData();
     formData.append("file", file);
@@ -52,42 +46,12 @@ export default function UploadPage() {
         throw new Error(`Server error (${res.status}). Please try again.`);
       }
 
-      // Read the streamed tokens
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error("No response stream.");
+      // res.text() automatically accumulates the entire streamed response.
+      // The server streams AI tokens to keep the connection alive,
+      // and the browser collects them all into one string.
+      const rawText = await res.text();
 
-      const decoder = new TextDecoder();
-      let rawText = "";
-      let started = false;
-      let completed = false;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n");
-
-        for (const line of lines) {
-          if (line === "__START__") {
-            started = true;
-            setStatus("processing");
-            continue;
-          }
-          if (line === "__DONE__") {
-            completed = true;
-            continue;
-          }
-          if (line.startsWith("__ERROR__")) {
-            throw new Error(line.slice(9) || "Processing failed.");
-          }
-          if (started && !completed) {
-            rawText += line;
-          }
-        }
-      }
-
-      if (!completed || !rawText.trim()) {
+      if (!rawText.trim()) {
         throw new Error("No document data received. Please try again.");
       }
 
@@ -103,7 +67,10 @@ export default function UploadPage() {
       try {
         documentData = JSON.parse(cleaned);
       } catch {
-        console.error("JSON parse failed. First 200 chars:", cleaned.slice(0, 200));
+        console.error(
+          "JSON parse failed. First 500 chars:",
+          cleaned.slice(0, 500)
+        );
         throw new Error("AI returned invalid data. Please try again.");
       }
 
@@ -138,11 +105,7 @@ export default function UploadPage() {
     disabled: status !== "idle" && status !== "done" && status !== "error",
   });
 
-  const isProcessing =
-    status === "uploading" ||
-    status === "processing" ||
-    status === "generating";
-  const statusMessage = STATUS_MESSAGES[status] || "Processing...";
+  const isProcessing = status === "processing" || status === "generating";
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-4">
@@ -198,7 +161,11 @@ export default function UploadPage() {
           <div className="flex flex-col items-center gap-4 py-12">
             <div className="w-12 h-12 border-4 border-accent border-t-transparent rounded-full animate-spin" />
             <div className="text-center">
-              <p className="font-medium text-primary">{statusMessage}</p>
+              <p className="font-medium text-primary">
+                {status === "generating"
+                  ? "Generating accessible document..."
+                  : "Processing Accessibility Updates..."}
+              </p>
               <p className="text-sm text-muted mt-1">
                 Analyzing <strong>{fileName}</strong> for ADA compliance. This
                 may take a moment.

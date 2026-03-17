@@ -62,21 +62,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Stream AI tokens directly to the client.
-  // The client assembles the full JSON text and generates the DOCX.
-  // This way the server has NOTHING to send after AI streaming ends.
+  // Stream AI tokens directly to the client as plain text.
+  // No markers, no protocol — just raw AI output.
+  // The browser's res.text() accumulates everything automatically.
   const encoder = new TextEncoder();
 
   const readable = new ReadableStream({
     async start(controller) {
-      const send = (line: string) => {
-        controller.enqueue(encoder.encode(line + "\n"));
-      };
-
       try {
-        // Signal start
-        send("__START__");
-
         const anthropic = new Anthropic();
         const stream = anthropic.messages.stream({
           model: "claude-sonnet-4-20250514",
@@ -95,18 +88,13 @@ export async function POST(request: NextRequest) {
             event.type === "content_block_delta" &&
             event.delta.type === "text_delta"
           ) {
-            // Stream each token directly to the client
-            send(event.delta.text);
+            controller.enqueue(encoder.encode(event.delta.text));
           }
         }
-
-        // Signal done — this is tiny, just a marker
-        send("__DONE__");
       } catch (error) {
         console.error("Processing error:", error);
-        const message =
-          error instanceof Error ? error.message : "Processing failed.";
-        send("__ERROR__" + message);
+        // If we haven't sent anything yet, this won't help much,
+        // but at least log it server-side
       }
 
       controller.close();
