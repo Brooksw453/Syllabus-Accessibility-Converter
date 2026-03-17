@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
+import mammoth from "mammoth";
 import {
   generateAccessibleDocxBlob,
   type AccessibleDocument,
@@ -9,7 +10,7 @@ import {
 
 type Status =
   | "idle"
-  | "uploading"
+  | "extracting"
   | "processing"
   | "generating"
   | "done"
@@ -26,15 +27,30 @@ export default function UploadPage() {
 
     setFileName(file.name);
     setError("");
-    setStatus("processing");
-
-    const formData = new FormData();
-    formData.append("file", file);
 
     try {
+      // Step 1: Extract text in the BROWSER (no server needed)
+      setStatus("extracting");
+      const arrayBuffer = await file.arrayBuffer();
+      let extractedText: string;
+
+      if (file.name.toLowerCase().endsWith(".docx")) {
+        const result = await mammoth.extractRawText({ arrayBuffer });
+        extractedText = result.value;
+      } else {
+        throw new Error("Only .docx files are currently supported.");
+      }
+
+      if (!extractedText.trim()) {
+        throw new Error("Could not extract any text from the file.");
+      }
+
+      // Step 2: Send extracted TEXT (not the file) to the API
+      setStatus("processing");
       const res = await fetch("/api/process-syllabus", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: extractedText }),
       });
 
       if (!res.ok) {
@@ -46,27 +62,65 @@ export default function UploadPage() {
         throw new Error(`Server error (${res.status}). Please try again.`);
       }
 
-      // res.text() automatically accumulates the entire streamed response.
-      // The server streams AI tokens to keep the connection alive,
-      // and the browser collects them all into one string.
+      // res.text() accumulates the entire streamed response
       const rawText = await res.text();
 
       if (!rawText.trim()) {
         throw new Error("No document data received. Please try again.");
       }
 
-      // Parse the AI's JSON response
+      if (rawText.includes("__ERROR__")) {
+        throw new Error("Server processing failed. Please try again.");
+      }
+
+      // Step 3: Parse JSON and generate DOCX in the browser
       setStatus("generating");
 
-      // Extract JSON robustly: find the first { and last }
+      // Extract JSON: find outermost { } using brace matching
       const firstBrace = rawText.indexOf("{");
-      const lastBrace = rawText.lastIndexOf("}");
-
-      if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
-        console.error("No JSON object found. Raw text:", rawText.slice(0, 500));
+      if (firstBrace === -1) {
         throw new Error(
-          "AI did not return valid JSON. Response starts with: " +
-            rawText.slice(0, 100)
+          "AI did not return JSON. Response starts with: " +
+            rawText.slice(0, 120)
+        );
+      }
+
+      // Walk from firstBrace, counting braces to find the matching close
+      let depth = 0;
+      let lastBrace = -1;
+      let inString = false;
+      let escaped = false;
+      for (let i = firstBrace; i < rawText.length; i++) {
+        const ch = rawText[i];
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (ch === "\\") {
+          escaped = true;
+          continue;
+        }
+        if (ch === '"') {
+          inString = !inString;
+          continue;
+        }
+        if (inString) continue;
+        if (ch === "{") depth++;
+        if (ch === "}") {
+          depth--;
+          if (depth === 0) {
+            lastBrace = i;
+            break;
+          }
+        }
+      }
+
+      if (lastBrace === -1) {
+        throw new Error(
+          "AI returned incomplete JSON (truncated). Response length: " +
+            rawText.length +
+            " chars. Starts with: " +
+            rawText.slice(0, 120)
         );
       }
 
@@ -75,16 +129,16 @@ export default function UploadPage() {
       let documentData: AccessibleDocument;
       try {
         documentData = JSON.parse(jsonString);
-      } catch (parseErr) {
-        console.error("JSON parse failed:", parseErr);
-        console.error("Extracted JSON (first 500):", jsonString.slice(0, 500));
+      } catch {
         throw new Error(
-          "AI returned malformed JSON. Response starts with: " +
-            rawText.slice(0, 100)
+          "AI returned malformed JSON. Length: " +
+            jsonString.length +
+            ". Starts with: " +
+            jsonString.slice(0, 120)
         );
       }
 
-      // Generate DOCX in the browser
+      // Step 4: Generate DOCX in the browser
       const blob = await generateAccessibleDocxBlob(documentData);
 
       // Trigger download
@@ -109,13 +163,22 @@ export default function UploadPage() {
     accept: {
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
         [".docx"],
-      "application/pdf": [".pdf"],
     },
     maxFiles: 1,
     disabled: status !== "idle" && status !== "done" && status !== "error",
   });
 
-  const isProcessing = status === "processing" || status === "generating";
+  const isProcessing =
+    status === "extracting" ||
+    status === "processing" ||
+    status === "generating";
+
+  const statusMessage =
+    status === "extracting"
+      ? "Extracting text from document..."
+      : status === "generating"
+        ? "Generating accessible document..."
+        : "Processing Accessibility Updates...";
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-4">
@@ -125,8 +188,8 @@ export default function UploadPage() {
             Upload Your Syllabus
           </h1>
           <p className="text-muted text-sm">
-            Upload a <strong>.docx</strong> or <strong>.pdf</strong> syllabus to
-            generate an ADA-compliant version.
+            Upload a <strong>.docx</strong> syllabus to generate an
+            ADA-compliant version.
           </p>
         </div>
 
@@ -160,9 +223,7 @@ export default function UploadPage() {
                   ? "Drop the file here..."
                   : "Drag & drop your syllabus here, or click to browse"}
               </p>
-              <p className="text-xs text-muted">
-                Supported formats: .docx, .pdf
-              </p>
+              <p className="text-xs text-muted">Supported format: .docx</p>
             </div>
           </div>
         )}
@@ -171,11 +232,7 @@ export default function UploadPage() {
           <div className="flex flex-col items-center gap-4 py-12">
             <div className="w-12 h-12 border-4 border-accent border-t-transparent rounded-full animate-spin" />
             <div className="text-center">
-              <p className="font-medium text-primary">
-                {status === "generating"
-                  ? "Generating accessible document..."
-                  : "Processing Accessibility Updates..."}
-              </p>
+              <p className="font-medium text-primary">{statusMessage}</p>
               <p className="text-sm text-muted mt-1">
                 Analyzing <strong>{fileName}</strong> for ADA compliance. This
                 may take a moment.

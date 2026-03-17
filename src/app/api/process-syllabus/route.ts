@@ -2,69 +2,33 @@ import { NextRequest, NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/auth";
 import { SYSTEM_PROMPT } from "@/lib/system-prompt";
 import Anthropic from "@anthropic-ai/sdk";
-import mammoth from "mammoth";
 
-export const maxDuration = 60;
+// Edge Runtime: no Node.js serverless timeout issues,
+// native streaming support, keeps connection alive properly.
+export const runtime = "edge";
 
 export async function POST(request: NextRequest) {
   if (!(await isAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let formData: FormData;
+  let body: { text: string };
   try {
-    formData = await request.formData();
+    body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid form data." }, { status: 400 });
+    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
-  const file = formData.get("file") as File | null;
-  if (!file) {
-    return NextResponse.json({ error: "No file uploaded." }, { status: 400 });
-  }
-
-  const fileName = file.name.toLowerCase();
-  if (!fileName.endsWith(".docx") && !fileName.endsWith(".pdf")) {
+  const { text } = body;
+  if (!text?.trim()) {
     return NextResponse.json(
-      { error: "Unsupported file type. Please upload a .docx or .pdf file." },
+      { error: "No text content provided." },
       { status: 400 }
     );
   }
 
-  // Extract text before starting the stream
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
-  let extractedText: string;
-
-  try {
-    if (fileName.endsWith(".docx")) {
-      const result = await mammoth.extractRawText({ buffer });
-      extractedText = result.value;
-    } else {
-      const { PDFParse } = await import("pdf-parse");
-      const parser = new PDFParse({ data: buffer });
-      const pdfData = await parser.getText();
-      extractedText = pdfData.text;
-      await parser.destroy();
-    }
-  } catch (err) {
-    console.error("Text extraction error:", err);
-    return NextResponse.json(
-      { error: "Failed to extract text from the file." },
-      { status: 500 }
-    );
-  }
-
-  if (!extractedText.trim()) {
-    return NextResponse.json(
-      { error: "Could not extract any text from the file." },
-      { status: 400 }
-    );
-  }
-
-  // Stream AI tokens directly to the client as plain text.
-  // No markers, no protocol — just raw AI output.
-  // The browser's res.text() accumulates everything automatically.
+  // Stream AI tokens directly to client as plain text.
+  // Edge Runtime handles streaming natively without buffering or early termination.
   const encoder = new TextEncoder();
 
   const readable = new ReadableStream({
@@ -78,7 +42,7 @@ export async function POST(request: NextRequest) {
           messages: [
             {
               role: "user",
-              content: `Here is the syllabus text to make ADA compliant:\n\n${extractedText}`,
+              content: `Here is the syllabus text to make ADA compliant:\n\n${text}`,
             },
           ],
         });
@@ -93,8 +57,10 @@ export async function POST(request: NextRequest) {
         }
       } catch (error) {
         console.error("Processing error:", error);
-        // If we haven't sent anything yet, this won't help much,
-        // but at least log it server-side
+        // Send error as plain text so client can detect it
+        controller.enqueue(
+          encoder.encode("\n__ERROR__: Processing failed on the server.")
+        );
       }
 
       controller.close();
@@ -105,7 +71,6 @@ export async function POST(request: NextRequest) {
     headers: {
       "Content-Type": "text/plain; charset=utf-8",
       "Cache-Control": "no-cache, no-transform",
-      "X-Accel-Buffering": "no",
     },
   });
 }
