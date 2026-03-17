@@ -62,20 +62,20 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Stream the AI response as SSE to keep connection alive,
-  // then send the final JSON for client-side DOCX generation
+  // Stream AI tokens directly to the client.
+  // The client assembles the full JSON text and generates the DOCX.
+  // This way the server has NOTHING to send after AI streaming ends.
   const encoder = new TextEncoder();
 
   const readable = new ReadableStream({
     async start(controller) {
-      const sendEvent = (data: Record<string, unknown>) => {
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify(data)}\n\n`)
-        );
+      const send = (line: string) => {
+        controller.enqueue(encoder.encode(line + "\n"));
       };
 
       try {
-        sendEvent({ status: "processing" });
+        // Signal start
+        send("__START__");
 
         const anthropic = new Anthropic();
         const stream = anthropic.messages.stream({
@@ -90,62 +90,33 @@ export async function POST(request: NextRequest) {
           ],
         });
 
-        let responseText = "";
-        let tokenCount = 0;
-
         for await (const event of stream) {
           if (
             event.type === "content_block_delta" &&
             event.delta.type === "text_delta"
           ) {
-            responseText += event.delta.text;
-            tokenCount++;
-            if (tokenCount % 15 === 0) {
-              sendEvent({ status: "processing", tokens: tokenCount });
-            }
+            // Stream each token directly to the client
+            send(event.delta.text);
           }
         }
 
-        // Clean up and parse the AI response
-        const cleaned = responseText
-          .replace(/^```(?:json)?\s*/i, "")
-          .replace(/\s*```$/i, "")
-          .trim();
-
-        let accessibleDoc;
-        try {
-          accessibleDoc = JSON.parse(cleaned);
-        } catch {
-          console.error("AI JSON parse failed:", cleaned.slice(0, 500));
-          sendEvent({ status: "error", error: "AI returned invalid JSON. Please try again." });
-          controller.close();
-          return;
-        }
-
-        // Send the parsed document JSON to the client for DOCX generation
-        sendEvent({ status: "complete", document: accessibleDoc });
-        controller.close();
+        // Signal done — this is tiny, just a marker
+        send("__DONE__");
       } catch (error) {
         console.error("Processing error:", error);
         const message =
-          error instanceof Error
-            ? error.message
-            : "An error occurred while processing the syllabus.";
-        try {
-          sendEvent({ status: "error", error: message });
-        } catch {
-          // Stream already closed
-        }
-        controller.close();
+          error instanceof Error ? error.message : "Processing failed.";
+        send("__ERROR__" + message);
       }
+
+      controller.close();
     },
   });
 
   return new Response(readable, {
     headers: {
-      "Content-Type": "text/event-stream",
+      "Content-Type": "text/plain; charset=utf-8",
       "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
       "X-Accel-Buffering": "no",
     },
   });

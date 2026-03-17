@@ -52,79 +52,62 @@ export default function UploadPage() {
         throw new Error(`Server error (${res.status}). Please try again.`);
       }
 
-      // Read SSE stream
+      // Read the streamed tokens
       const reader = res.body?.getReader();
       if (!reader) throw new Error("No response stream.");
 
       const decoder = new TextDecoder();
-      let buffer = "";
-      let documentData: AccessibleDocument | null = null;
+      let rawText = "";
+      let started = false;
+      let completed = false;
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        buffer += decoder.decode(value, { stream: true });
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split("\n");
 
-        // Parse SSE events: "data: {...}\n\n"
-        const parts = buffer.split("\n\n");
-        buffer = parts.pop() || "";
-
-        for (const part of parts) {
-          for (const line of part.split("\n")) {
-            const trimmed = line.trim();
-            if (!trimmed.startsWith("data: ")) continue;
-
-            let event;
-            try {
-              event = JSON.parse(trimmed.slice(6));
-            } catch {
-              continue;
-            }
-
-            if (event.status === "error") {
-              throw new Error(event.error || "Processing failed.");
-            }
-
-            if (event.status === "processing") {
-              setStatus("processing");
-            }
-
-            if (event.status === "complete" && event.document) {
-              documentData = event.document as AccessibleDocument;
-            }
+        for (const line of lines) {
+          if (line === "__START__") {
+            started = true;
+            setStatus("processing");
+            continue;
+          }
+          if (line === "__DONE__") {
+            completed = true;
+            continue;
+          }
+          if (line.startsWith("__ERROR__")) {
+            throw new Error(line.slice(9) || "Processing failed.");
+          }
+          if (started && !completed) {
+            rawText += line;
           }
         }
       }
 
-      // Process remaining buffer
-      if (buffer.trim()) {
-        for (const line of buffer.split("\n")) {
-          const trimmed = line.trim();
-          if (!trimmed.startsWith("data: ")) continue;
-          try {
-            const event = JSON.parse(trimmed.slice(6));
-            if (event.status === "error") {
-              throw new Error(event.error || "Processing failed.");
-            }
-            if (event.status === "complete" && event.document) {
-              documentData = event.document as AccessibleDocument;
-            }
-          } catch (e) {
-            if (e instanceof Error && e.message !== "Processing failed.") {
-              continue;
-            }
-            throw e;
-          }
-        }
-      }
-
-      if (!documentData) {
+      if (!completed || !rawText.trim()) {
         throw new Error("No document data received. Please try again.");
       }
 
-      // Generate DOCX in the browser
+      // Parse the AI's JSON response
       setStatus("generating");
+
+      const cleaned = rawText
+        .replace(/^```(?:json)?\s*/i, "")
+        .replace(/\s*```$/i, "")
+        .trim();
+
+      let documentData: AccessibleDocument;
+      try {
+        documentData = JSON.parse(cleaned);
+      } catch {
+        console.error("JSON parse failed. First 200 chars:", cleaned.slice(0, 200));
+        throw new Error("AI returned invalid data. Please try again.");
+      }
+
+      // Generate DOCX in the browser
       const blob = await generateAccessibleDocxBlob(documentData);
 
       // Trigger download
@@ -174,7 +157,6 @@ export default function UploadPage() {
           </p>
         </div>
 
-        {/* Dropzone */}
         {!isProcessing && (
           <div
             {...getRootProps()}
@@ -212,7 +194,6 @@ export default function UploadPage() {
           </div>
         )}
 
-        {/* Processing State */}
         {isProcessing && (
           <div className="flex flex-col items-center gap-4 py-12">
             <div className="w-12 h-12 border-4 border-accent border-t-transparent rounded-full animate-spin" />
@@ -226,7 +207,6 @@ export default function UploadPage() {
           </div>
         )}
 
-        {/* Success State */}
         {status === "done" && (
           <div className="mt-6 text-center bg-green-50 text-green-800 px-4 py-3 rounded-lg">
             <p className="font-medium">
@@ -238,7 +218,6 @@ export default function UploadPage() {
           </div>
         )}
 
-        {/* Error State */}
         {status === "error" && (
           <div
             role="alert"
