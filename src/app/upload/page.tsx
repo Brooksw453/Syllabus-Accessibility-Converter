@@ -58,20 +58,30 @@ export default function UploadPage() {
       // Parse the AI's JSON response
       setStatus("generating");
 
-      const cleaned = rawText
-        .replace(/^```(?:json)?\s*/i, "")
-        .replace(/\s*```$/i, "")
-        .trim();
+      // Extract JSON robustly: find the first { and last }
+      const firstBrace = rawText.indexOf("{");
+      const lastBrace = rawText.lastIndexOf("}");
+
+      if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+        console.error("No JSON object found. Raw text:", rawText.slice(0, 500));
+        throw new Error(
+          "AI did not return valid JSON. Response starts with: " +
+            rawText.slice(0, 100)
+        );
+      }
+
+      const jsonString = rawText.slice(firstBrace, lastBrace + 1);
 
       let documentData: AccessibleDocument;
       try {
-        documentData = JSON.parse(cleaned);
-      } catch {
-        console.error(
-          "JSON parse failed. First 500 chars:",
-          cleaned.slice(0, 500)
+        documentData = JSON.parse(jsonString);
+      } catch (parseErr) {
+        console.error("JSON parse failed:", parseErr);
+        console.error("Extracted JSON (first 500):", jsonString.slice(0, 500));
+        throw new Error(
+          "AI returned malformed JSON. Response starts with: " +
+            rawText.slice(0, 100)
         );
-        throw new Error("AI returned invalid data. Please try again.");
       }
 
       // Generate DOCX in the browser
