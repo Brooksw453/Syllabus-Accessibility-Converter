@@ -12,7 +12,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Parse the upload before starting the stream
   let formData: FormData;
   try {
     formData = await request.formData();
@@ -37,13 +36,16 @@ export async function POST(request: NextRequest) {
 
   const readable = new ReadableStream({
     async start(controller) {
-      const send = (data: Record<string, unknown>) => {
-        controller.enqueue(encoder.encode(JSON.stringify(data) + "\n"));
+      const sendEvent = (data: Record<string, unknown>) => {
+        // SSE format: "data: ...\n\n"
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify(data)}\n\n`)
+        );
       };
 
       try {
         // Step 1: Extract text
-        send({ status: "extracting" });
+        sendEvent({ status: "extracting" });
 
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
@@ -61,13 +63,13 @@ export async function POST(request: NextRequest) {
         }
 
         if (!extractedText.trim()) {
-          send({ status: "error", error: "Could not extract any text from the file." });
+          sendEvent({ status: "error", error: "Could not extract any text from the file." });
           controller.close();
           return;
         }
 
-        // Step 2: Stream AI processing — sends bytes to client to keep connection alive
-        send({ status: "processing" });
+        // Step 2: Stream AI processing
+        sendEvent({ status: "processing" });
 
         const anthropic = new Anthropic();
         const stream = anthropic.messages.stream({
@@ -92,15 +94,15 @@ export async function POST(request: NextRequest) {
           ) {
             responseText += event.delta.text;
             tokenCount++;
-            // Send progress every 20 tokens to keep connection alive
-            if (tokenCount % 20 === 0) {
-              send({ status: "processing", tokens: tokenCount });
+            // Send keepalive every 15 tokens
+            if (tokenCount % 15 === 0) {
+              sendEvent({ status: "processing", tokens: tokenCount });
             }
           }
         }
 
         // Step 3: Parse AI response
-        send({ status: "generating" });
+        sendEvent({ status: "generating" });
 
         let accessibleDoc;
         try {
@@ -110,17 +112,31 @@ export async function POST(request: NextRequest) {
             .trim();
           accessibleDoc = JSON.parse(cleaned);
         } catch {
-          console.error("AI response was not valid JSON:", responseText.slice(0, 500));
-          send({ status: "error", error: "AI returned invalid JSON. Please try again." });
+          console.error("AI JSON parse failed. First 500 chars:", responseText.slice(0, 500));
+          sendEvent({ status: "error", error: "AI returned invalid JSON. Please try again." });
           controller.close();
           return;
         }
 
-        // Step 4: Generate DOCX and send as base64
+        // Step 4: Generate DOCX
         const docxBuffer = await generateAccessibleDocx(accessibleDoc);
         const base64 = Buffer.from(docxBuffer).toString("base64");
 
-        send({ status: "complete", file: base64 });
+        // Send file in chunks to avoid huge single SSE message
+        const CHUNK_SIZE = 32768; // 32KB chunks
+        const totalChunks = Math.ceil(base64.length / CHUNK_SIZE);
+
+        for (let i = 0; i < totalChunks; i++) {
+          const chunk = base64.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+          sendEvent({
+            status: "file_chunk",
+            chunk,
+            index: i,
+            total: totalChunks,
+          });
+        }
+
+        sendEvent({ status: "complete" });
         controller.close();
       } catch (error) {
         console.error("Processing error:", error);
@@ -129,20 +145,21 @@ export async function POST(request: NextRequest) {
             ? error.message
             : "An error occurred while processing the syllabus.";
         try {
-          send({ status: "error", error: message });
-          controller.close();
+          sendEvent({ status: "error", error: message });
         } catch {
           // Stream may already be closed
         }
+        controller.close();
       }
     },
   });
 
   return new Response(readable, {
     headers: {
-      "Content-Type": "text/plain; charset=utf-8",
-      "Transfer-Encoding": "chunked",
-      "Cache-Control": "no-cache",
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
     },
   });
 }

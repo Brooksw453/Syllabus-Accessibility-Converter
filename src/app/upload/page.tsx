@@ -12,6 +12,25 @@ const STATUS_MESSAGES: Record<string, string> = {
   generating: "Generating accessible document...",
 };
 
+function downloadBase64Docx(base64: string) {
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  const blob = new Blob([bytes], {
+    type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "accessible-syllabus.docx";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export default function UploadPage() {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
@@ -43,25 +62,36 @@ export default function UploadPage() {
         throw new Error(`Server error (${res.status}). Please try again.`);
       }
 
-      // Read the streaming response line by line
+      // Read SSE stream
       const reader = res.body?.getReader();
       if (!reader) throw new Error("No response stream.");
 
       const decoder = new TextDecoder();
       let buffer = "";
+      const fileChunks: string[] = [];
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        // Keep the last (possibly incomplete) line in the buffer
-        buffer = lines.pop() || "";
 
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          const event = JSON.parse(line);
+        // Parse SSE events: "data: {...}\n\n"
+        const parts = buffer.split("\n\n");
+        // Keep the last (possibly incomplete) part
+        buffer = parts.pop() || "";
+
+        for (const part of parts) {
+          const line = part.trim();
+          if (!line.startsWith("data: ")) continue;
+
+          const json = line.slice(6); // Remove "data: " prefix
+          let event;
+          try {
+            event = JSON.parse(json);
+          } catch {
+            continue;
+          }
 
           if (event.status === "error") {
             throw new Error(event.error || "Processing failed.");
@@ -71,53 +101,42 @@ export default function UploadPage() {
             setStatus(event.status as Status);
           }
 
-          if (event.status === "complete" && event.file) {
-            // Decode base64 and trigger download
-            const binaryString = atob(event.file);
-            const bytes = new Uint8Array(binaryString.length);
-            for (let i = 0; i < binaryString.length; i++) {
-              bytes[i] = binaryString.charCodeAt(i);
-            }
-            const blob = new Blob([bytes], {
-              type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = "accessible-syllabus.docx";
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+          if (event.status === "file_chunk" && event.chunk) {
+            fileChunks[event.index] = event.chunk;
+          }
+
+          if (event.status === "complete") {
+            const fullBase64 = fileChunks.join("");
+            downloadBase64Docx(fullBase64);
             setStatus("done");
           }
         }
       }
 
-      // Process any remaining data in buffer
+      // Handle any remaining buffer
       if (buffer.trim()) {
-        const event = JSON.parse(buffer);
-        if (event.status === "error") {
-          throw new Error(event.error || "Processing failed.");
-        }
-        if (event.status === "complete" && event.file) {
-          const binaryString = atob(event.file);
-          const bytes = new Uint8Array(binaryString.length);
-          for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
+        const line = buffer.trim();
+        if (line.startsWith("data: ")) {
+          try {
+            const event = JSON.parse(line.slice(6));
+            if (event.status === "error") {
+              throw new Error(event.error || "Processing failed.");
+            }
+            if (event.status === "file_chunk" && event.chunk) {
+              fileChunks[event.index] = event.chunk;
+            }
+            if (event.status === "complete") {
+              const fullBase64 = fileChunks.join("");
+              downloadBase64Docx(fullBase64);
+              setStatus("done");
+            }
+          } catch (e) {
+            if (e instanceof Error && e.message !== "Processing failed.") {
+              // JSON parse error, ignore
+            } else {
+              throw e;
+            }
           }
-          const blob = new Blob([bytes], {
-            type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-          });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = "accessible-syllabus.docx";
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-          setStatus("done");
         }
       }
     } catch (err) {
@@ -134,7 +153,7 @@ export default function UploadPage() {
       "application/pdf": [".pdf"],
     },
     maxFiles: 1,
-    disabled: status === "uploading" || status === "extracting" || status === "processing" || status === "generating",
+    disabled: status !== "idle" && status !== "done" && status !== "error",
   });
 
   const isProcessing = status === "uploading" || status === "extracting" || status === "processing" || status === "generating";
