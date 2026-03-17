@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/auth";
 import { SYSTEM_PROMPT } from "@/lib/system-prompt";
-import { generateAccessibleDocx } from "@/lib/generate-docx";
 import Anthropic from "@anthropic-ai/sdk";
 import mammoth from "mammoth";
 
@@ -32,43 +31,50 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Extract text before starting the stream
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  let extractedText: string;
+
+  try {
+    if (fileName.endsWith(".docx")) {
+      const result = await mammoth.extractRawText({ buffer });
+      extractedText = result.value;
+    } else {
+      const { PDFParse } = await import("pdf-parse");
+      const parser = new PDFParse({ data: buffer });
+      const pdfData = await parser.getText();
+      extractedText = pdfData.text;
+      await parser.destroy();
+    }
+  } catch (err) {
+    console.error("Text extraction error:", err);
+    return NextResponse.json(
+      { error: "Failed to extract text from the file." },
+      { status: 500 }
+    );
+  }
+
+  if (!extractedText.trim()) {
+    return NextResponse.json(
+      { error: "Could not extract any text from the file." },
+      { status: 400 }
+    );
+  }
+
+  // Stream the AI response as SSE to keep connection alive,
+  // then send the final JSON for client-side DOCX generation
   const encoder = new TextEncoder();
 
   const readable = new ReadableStream({
     async start(controller) {
       const sendEvent = (data: Record<string, unknown>) => {
-        // SSE format: "data: ...\n\n"
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify(data)}\n\n`)
         );
       };
 
       try {
-        // Step 1: Extract text
-        sendEvent({ status: "extracting" });
-
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        let extractedText: string;
-
-        if (fileName.endsWith(".docx")) {
-          const result = await mammoth.extractRawText({ buffer });
-          extractedText = result.value;
-        } else {
-          const { PDFParse } = await import("pdf-parse");
-          const parser = new PDFParse({ data: buffer });
-          const pdfData = await parser.getText();
-          extractedText = pdfData.text;
-          await parser.destroy();
-        }
-
-        if (!extractedText.trim()) {
-          sendEvent({ status: "error", error: "Could not extract any text from the file." });
-          controller.close();
-          return;
-        }
-
-        // Step 2: Stream AI processing
         sendEvent({ status: "processing" });
 
         const anthropic = new Anthropic();
@@ -94,49 +100,30 @@ export async function POST(request: NextRequest) {
           ) {
             responseText += event.delta.text;
             tokenCount++;
-            // Send keepalive every 15 tokens
             if (tokenCount % 15 === 0) {
               sendEvent({ status: "processing", tokens: tokenCount });
             }
           }
         }
 
-        // Step 3: Parse AI response
-        sendEvent({ status: "generating" });
+        // Clean up and parse the AI response
+        const cleaned = responseText
+          .replace(/^```(?:json)?\s*/i, "")
+          .replace(/\s*```$/i, "")
+          .trim();
 
         let accessibleDoc;
         try {
-          const cleaned = responseText
-            .replace(/^```(?:json)?\s*/i, "")
-            .replace(/\s*```$/i, "")
-            .trim();
           accessibleDoc = JSON.parse(cleaned);
         } catch {
-          console.error("AI JSON parse failed. First 500 chars:", responseText.slice(0, 500));
+          console.error("AI JSON parse failed:", cleaned.slice(0, 500));
           sendEvent({ status: "error", error: "AI returned invalid JSON. Please try again." });
           controller.close();
           return;
         }
 
-        // Step 4: Generate DOCX
-        const docxBuffer = await generateAccessibleDocx(accessibleDoc);
-        const base64 = Buffer.from(docxBuffer).toString("base64");
-
-        // Send file in chunks to avoid huge single SSE message
-        const CHUNK_SIZE = 32768; // 32KB chunks
-        const totalChunks = Math.ceil(base64.length / CHUNK_SIZE);
-
-        for (let i = 0; i < totalChunks; i++) {
-          const chunk = base64.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-          sendEvent({
-            status: "file_chunk",
-            chunk,
-            index: i,
-            total: totalChunks,
-          });
-        }
-
-        sendEvent({ status: "complete" });
+        // Send the parsed document JSON to the client for DOCX generation
+        sendEvent({ status: "complete", document: accessibleDoc });
         controller.close();
       } catch (error) {
         console.error("Processing error:", error);
@@ -147,7 +134,7 @@ export async function POST(request: NextRequest) {
         try {
           sendEvent({ status: "error", error: message });
         } catch {
-          // Stream may already be closed
+          // Stream already closed
         }
         controller.close();
       }

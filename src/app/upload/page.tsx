@@ -2,34 +2,24 @@
 
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
+import {
+  generateAccessibleDocxBlob,
+  type AccessibleDocument,
+} from "@/lib/generate-docx-client";
 
-type Status = "idle" | "uploading" | "extracting" | "processing" | "generating" | "done" | "error";
+type Status =
+  | "idle"
+  | "uploading"
+  | "processing"
+  | "generating"
+  | "done"
+  | "error";
 
 const STATUS_MESSAGES: Record<string, string> = {
   uploading: "Uploading file...",
-  extracting: "Extracting text from document...",
   processing: "Processing Accessibility Updates...",
   generating: "Generating accessible document...",
 };
-
-function downloadBase64Docx(base64: string) {
-  const binaryString = atob(base64);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  const blob = new Blob([bytes], {
-    type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "accessible-syllabus.docx";
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
 
 export default function UploadPage() {
   const [status, setStatus] = useState<Status>("idle");
@@ -68,7 +58,7 @@ export default function UploadPage() {
 
       const decoder = new TextDecoder();
       let buffer = "";
-      const fileChunks: string[] = [];
+      let documentData: AccessibleDocument | null = null;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -78,67 +68,76 @@ export default function UploadPage() {
 
         // Parse SSE events: "data: {...}\n\n"
         const parts = buffer.split("\n\n");
-        // Keep the last (possibly incomplete) part
         buffer = parts.pop() || "";
 
         for (const part of parts) {
-          const line = part.trim();
-          if (!line.startsWith("data: ")) continue;
+          for (const line of part.split("\n")) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith("data: ")) continue;
 
-          const json = line.slice(6); // Remove "data: " prefix
-          let event;
-          try {
-            event = JSON.parse(json);
-          } catch {
-            continue;
-          }
+            let event;
+            try {
+              event = JSON.parse(trimmed.slice(6));
+            } catch {
+              continue;
+            }
 
-          if (event.status === "error") {
-            throw new Error(event.error || "Processing failed.");
-          }
-
-          if (event.status === "extracting" || event.status === "processing" || event.status === "generating") {
-            setStatus(event.status as Status);
-          }
-
-          if (event.status === "file_chunk" && event.chunk) {
-            fileChunks[event.index] = event.chunk;
-          }
-
-          if (event.status === "complete") {
-            const fullBase64 = fileChunks.join("");
-            downloadBase64Docx(fullBase64);
-            setStatus("done");
-          }
-        }
-      }
-
-      // Handle any remaining buffer
-      if (buffer.trim()) {
-        const line = buffer.trim();
-        if (line.startsWith("data: ")) {
-          try {
-            const event = JSON.parse(line.slice(6));
             if (event.status === "error") {
               throw new Error(event.error || "Processing failed.");
             }
-            if (event.status === "file_chunk" && event.chunk) {
-              fileChunks[event.index] = event.chunk;
+
+            if (event.status === "processing") {
+              setStatus("processing");
             }
-            if (event.status === "complete") {
-              const fullBase64 = fileChunks.join("");
-              downloadBase64Docx(fullBase64);
-              setStatus("done");
-            }
-          } catch (e) {
-            if (e instanceof Error && e.message !== "Processing failed.") {
-              // JSON parse error, ignore
-            } else {
-              throw e;
+
+            if (event.status === "complete" && event.document) {
+              documentData = event.document as AccessibleDocument;
             }
           }
         }
       }
+
+      // Process remaining buffer
+      if (buffer.trim()) {
+        for (const line of buffer.split("\n")) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith("data: ")) continue;
+          try {
+            const event = JSON.parse(trimmed.slice(6));
+            if (event.status === "error") {
+              throw new Error(event.error || "Processing failed.");
+            }
+            if (event.status === "complete" && event.document) {
+              documentData = event.document as AccessibleDocument;
+            }
+          } catch (e) {
+            if (e instanceof Error && e.message !== "Processing failed.") {
+              continue;
+            }
+            throw e;
+          }
+        }
+      }
+
+      if (!documentData) {
+        throw new Error("No document data received. Please try again.");
+      }
+
+      // Generate DOCX in the browser
+      setStatus("generating");
+      const blob = await generateAccessibleDocxBlob(documentData);
+
+      // Trigger download
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "accessible-syllabus.docx";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setStatus("done");
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred.");
       setStatus("error");
@@ -156,7 +155,10 @@ export default function UploadPage() {
     disabled: status !== "idle" && status !== "done" && status !== "error",
   });
 
-  const isProcessing = status === "uploading" || status === "extracting" || status === "processing" || status === "generating";
+  const isProcessing =
+    status === "uploading" ||
+    status === "processing" ||
+    status === "generating";
   const statusMessage = STATUS_MESSAGES[status] || "Processing...";
 
   return (
@@ -215,9 +217,7 @@ export default function UploadPage() {
           <div className="flex flex-col items-center gap-4 py-12">
             <div className="w-12 h-12 border-4 border-accent border-t-transparent rounded-full animate-spin" />
             <div className="text-center">
-              <p className="font-medium text-primary">
-                {statusMessage}
-              </p>
+              <p className="font-medium text-primary">{statusMessage}</p>
               <p className="text-sm text-muted mt-1">
                 Analyzing <strong>{fileName}</strong> for ADA compliance. This
                 may take a moment.
