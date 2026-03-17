@@ -3,7 +3,14 @@
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
 
-type Status = "idle" | "uploading" | "processing" | "done" | "error";
+type Status = "idle" | "uploading" | "extracting" | "processing" | "generating" | "done" | "error";
+
+const STATUS_MESSAGES: Record<string, string> = {
+  uploading: "Uploading file...",
+  extracting: "Extracting text from document...",
+  processing: "Processing Accessibility Updates...",
+  generating: "Generating accessible document...",
+};
 
 export default function UploadPage() {
   const [status, setStatus] = useState<Status>("idle");
@@ -22,8 +29,6 @@ export default function UploadPage() {
     formData.append("file", file);
 
     try {
-      setStatus("processing");
-
       const res = await fetch("/api/process-syllabus", {
         method: "POST",
         body: formData,
@@ -38,18 +43,83 @@ export default function UploadPage() {
         throw new Error(`Server error (${res.status}). Please try again.`);
       }
 
-      // Download the returned .docx file
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "accessible-syllabus.docx";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      // Read the streaming response line by line
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response stream.");
 
-      setStatus("done");
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        // Keep the last (possibly incomplete) line in the buffer
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const event = JSON.parse(line);
+
+          if (event.status === "error") {
+            throw new Error(event.error || "Processing failed.");
+          }
+
+          if (event.status === "extracting" || event.status === "processing" || event.status === "generating") {
+            setStatus(event.status as Status);
+          }
+
+          if (event.status === "complete" && event.file) {
+            // Decode base64 and trigger download
+            const binaryString = atob(event.file);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+              bytes[i] = binaryString.charCodeAt(i);
+            }
+            const blob = new Blob([bytes], {
+              type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "accessible-syllabus.docx";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            setStatus("done");
+          }
+        }
+      }
+
+      // Process any remaining data in buffer
+      if (buffer.trim()) {
+        const event = JSON.parse(buffer);
+        if (event.status === "error") {
+          throw new Error(event.error || "Processing failed.");
+        }
+        if (event.status === "complete" && event.file) {
+          const binaryString = atob(event.file);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          const blob = new Blob([bytes], {
+            type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "accessible-syllabus.docx";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          setStatus("done");
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred.");
       setStatus("error");
@@ -64,8 +134,11 @@ export default function UploadPage() {
       "application/pdf": [".pdf"],
     },
     maxFiles: 1,
-    disabled: status === "processing" || status === "uploading",
+    disabled: status === "uploading" || status === "extracting" || status === "processing" || status === "generating",
   });
+
+  const isProcessing = status === "uploading" || status === "extracting" || status === "processing" || status === "generating";
+  const statusMessage = STATUS_MESSAGES[status] || "Processing...";
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-4">
@@ -81,7 +154,7 @@ export default function UploadPage() {
         </div>
 
         {/* Dropzone */}
-        {(status === "idle" || status === "done" || status === "error") && (
+        {!isProcessing && (
           <div
             {...getRootProps()}
             className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-colors ${
@@ -119,12 +192,12 @@ export default function UploadPage() {
         )}
 
         {/* Processing State */}
-        {(status === "uploading" || status === "processing") && (
+        {isProcessing && (
           <div className="flex flex-col items-center gap-4 py-12">
             <div className="w-12 h-12 border-4 border-accent border-t-transparent rounded-full animate-spin" />
             <div className="text-center">
               <p className="font-medium text-primary">
-                Processing Accessibility Updates...
+                {statusMessage}
               </p>
               <p className="text-sm text-muted mt-1">
                 Analyzing <strong>{fileName}</strong> for ADA compliance. This
