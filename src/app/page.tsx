@@ -155,6 +155,17 @@ function LoginPageInner() {
             </button>
           </form>
 
+          {/* Institution access contact */}
+          <div className="mt-4 text-center text-xs text-muted/70 bg-surface-elevated border border-border rounded-lg px-4 py-3">
+            Want access for your school or institution?{" "}
+            <a
+              href="mailto:bwinchell@esdesigns.org"
+              className="text-primary hover:underline"
+            >
+              bwinchell@esdesigns.org
+            </a>
+          </div>
+
           {/* Learn More accordion */}
           <div className="mt-6 border border-border rounded-lg overflow-hidden">
             <button

@@ -44,12 +44,12 @@ body {
   box-shadow: 0 0 20px #22c55e30, inset 0 0 20px #22c55e10;
 }
 
-/* Scan bar animation for the A11y header */
+/* Scan bar animation for the A11y header — vertical beam sweeps left to right */
 @keyframes scan {
-  0%   { transform: translateY(-100%); opacity: 0; }
-  15%  { opacity: 0.7; }
-  85%  { opacity: 0.7; }
-  100% { transform: translateY(500%); opacity: 0; }
+  0%   { transform: translateX(-100%); opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { transform: translateX(600%); opacity: 0; }
 }
 
 .scan-bar {
@@ -60,9 +60,10 @@ body {
 .scan-bar::after {
   content: '';
   position: absolute;
+  top: 0;
+  bottom: 0;
   left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, #22c55e, #4ade80, #22c55e, transparent);
+  width: 15%;
+  background: linear-gradient(90deg, transparent, #22c55e60, #4ade80, #22c55e60, transparent);
   animation: scan 3s ease-in-out infinite;
 }
