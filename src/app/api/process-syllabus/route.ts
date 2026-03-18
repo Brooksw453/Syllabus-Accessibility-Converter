@@ -28,8 +28,9 @@ export async function POST(request: NextRequest) {
 
   // Log usage to Vercel Function Logs (visible in Vercel dashboard → Logs tab)
   const userEmail = request.cookies.get("syllabus-user-email")?.value ?? "unknown";
+  const isDemo = request.cookies.get("demo-auth")?.value === "available";
   const timestamp = new Date().toISOString();
-  console.log(`[USAGE] time=${timestamp} | email=${userEmail} | file=${fileName ?? "unknown"}`);
+  console.log(`[USAGE] time=${timestamp} | email=${userEmail} | file=${fileName ?? "unknown"} | demo=${isDemo}`);
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -126,10 +127,16 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  return new Response(readable, {
-    headers: {
-      "Content-Type": "text/plain; charset=utf-8",
-      "Cache-Control": "no-cache, no-transform",
-    },
-  });
+  const isSecure = process.env.NODE_ENV === "production";
+  const responseHeaders: Record<string, string> = {
+    "Content-Type": "text/plain; charset=utf-8",
+    "Cache-Control": "no-cache, no-transform",
+  };
+  // Mark demo trial as used so further uploads are blocked
+  if (isDemo) {
+    responseHeaders["Set-Cookie"] =
+      `demo-auth=used; HttpOnly; ${isSecure ? "Secure; " : ""}SameSite=Strict; Path=/; Max-Age=7200`;
+  }
+
+  return new Response(readable, { headers: responseHeaders });
 }

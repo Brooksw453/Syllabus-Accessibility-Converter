@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm --yes)",
+      "Read(//c/Users/brook/OneDrive/Documents/GitHub/**)",
+      "Bash(npx create-next-app@latest syllabus-temp --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm --yes)",
+      "Bash(cp -r syllabus-temp/* syllabus-temp/.* \"Syllabus Accessibility Converter/\")",
+      "Bash(rm -rf syllabus-temp)",
+      "Bash(SRC=\"/c/Users/brook/OneDrive/Documents/GitHub/syllabus-temp\")",
+      "Bash(DEST=\"/c/Users/brook/OneDrive/Documents/GitHub/Syllabus Accessibility Converter\")",
+      "Bash(cp \"$SRC/package.json\" \"$SRC/package-lock.json\" \"$SRC/tsconfig.json\" \"$SRC/postcss.config.mjs\" \"$DEST/\")",
+      "Bash(cp -r \"$SRC/src\" \"$SRC/public\" \"$DEST/\")",
+      "Bash(cp -r \"$SRC/.git\" \"$SRC/.gitignore\" \"$DEST/\")",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(node -e \"const p = require\\(''''pdf-parse''''\\); console.log\\(typeof p, Object.keys\\(p\\)\\)\")",
+      "Bash(node -e \"const {PDFParse} = require\\(''pdf-parse''\\); const p = new PDFParse\\(Buffer.from\\(''test''\\)\\); console.log\\(Object.getOwnPropertyNames\\(Object.getPrototypeOf\\(p\\)\\)\\)\")",
+      "Bash(node -e \":*)",
+      "Bash(npm ls:*)",
+      "Bash(npx next:*)",
+      "Bash(node -e \"const m = require\\(''pdf-parse''\\); console.log\\(Object.keys\\(m\\)\\)\")",
+      "Bash(node -e \"const {PDFParse} = require\\(''pdf-parse''\\); console.log\\(typeof PDFParse\\)\")",
+      "Bash(gh auth:*)",
+      "Bash(gh repo:*)",
+      "Bash(node -e \"const p = require\\(''pdf-parse''\\); console.log\\(typeof p, Object.keys\\(p\\).slice\\(0,10\\)\\)\")",
+      "WebFetch(domain:esdesigns.org)",
+      "WebFetch(domain:cdnjs.cloudflare.com)",
+      "WebFetch(domain:api.cdnjs.com)",
+      "Bash(source .env.local)",
+      "Bash(curl -s -w \"\\\\nHTTP_STATUS:%{http_code}\" https://api.anthropic.com/v1/messages -H \"content-type: application/json\" -H \"x-api-key: $ANTHROPIC_API_KEY\" -H \"anthropic-version: 2023-06-01\" -d '{\"\"\"\"model\"\"\"\":\"\"\"\"claude-sonnet-4-20250514\"\"\"\",\"\"\"\"max_tokens\"\"\"\":32,\"\"\"\"messages\"\"\"\":[{\"\"\"\"role\"\"\"\":\"\"\"\"user\"\"\"\",\"\"\"\"content\"\"\"\":\"\"\"\"Say hello\"\"\"\"}]}')",
+      "WebSearch",
+      "Bash(node -e \"const d = require\\(''''docx''''\\); console.log\\(Object.keys\\(d\\)\\)\")"
+    ]
+  }
+}

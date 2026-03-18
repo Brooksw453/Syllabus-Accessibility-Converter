@@ -1,27 +1,34 @@
 "use client";
 
-import { useState, FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useState, FormEvent, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
-export default function LoginPage() {
+function LoginPageInner() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
+  const [learnOpen, setLearnOpen] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get("trial") === "used") {
+      setError("Your free trial has been used. Enter your password to continue.");
+    }
+  }, [searchParams]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
-
     try {
       const res = await fetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-
       if (res.ok) {
         router.push("/upload");
       } else {
@@ -35,73 +42,192 @@ export default function LoginPage() {
     }
   }
 
+  async function handleTryFree() {
+    setDemoLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/demo", { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        router.push(data.redirect);
+      } else {
+        setError("Could not start free trial. Please try again.");
+      }
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setDemoLoading(false);
+    }
+  }
+
   return (
-    <main className="min-h-screen flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-surface-card border border-border rounded-2xl p-8 glow-border">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-primary glow-text mb-2 tracking-wide">
-            Syllabus Accessibility Converter
-          </h1>
-          <p className="text-muted text-sm">
-            Enter the shared password to access the tool.
-          </p>
+    <main className="min-h-screen flex flex-col items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        {/* A11y scan bar header */}
+        <div className="scan-bar bg-surface-elevated border border-primary/30 rounded-t-xl px-6 py-3 flex items-center justify-between mb-0">
+          <span className="text-xs font-mono text-primary/60 tracking-widest uppercase">
+            accessibility.esdesigns.org
+          </span>
+          <span className="text-primary font-bold tracking-widest text-sm uppercase glow-text">
+            Syllabus A11y
+          </span>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-muted mb-1 tracking-wide uppercase"
-            >
-              Email Address
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoFocus
-              className="w-full px-4 py-2.5 bg-surface border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary placeholder-muted/50"
-              placeholder="your@email.com"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium text-muted mb-1 tracking-wide uppercase"
-            >
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="w-full px-4 py-2.5 bg-surface border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary placeholder-muted/50"
-              placeholder="Enter shared password"
-            />
+        {/* Main card */}
+        <div className="bg-surface-card border border-t-0 border-border rounded-b-2xl p-8 glow-border">
+          <div className="text-center mb-6">
+            <h1 className="text-2xl font-bold text-primary glow-text mb-1 tracking-wide">
+              Syllabus A11y
+            </h1>
+            <p className="text-muted text-sm">
+              AI-powered accessibility converter for course documents.
+            </p>
           </div>
 
-          {error && (
-            <div
-              role="alert"
-              className="text-red-400 text-sm bg-red-950/40 border border-red-800/50 px-3 py-2 rounded-lg"
-            >
-              {error}
-            </div>
-          )}
-
+          {/* Try It Free button */}
           <button
-            type="submit"
-            disabled={loading}
-            className="w-full border-2 border-primary text-primary hover:bg-primary/10 font-medium py-2.5 px-4 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed tracking-wide uppercase text-sm"
+            type="button"
+            onClick={handleTryFree}
+            disabled={demoLoading}
+            className="w-full bg-primary/10 border-2 border-primary text-primary hover:bg-primary/20 font-semibold py-3 px-4 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed tracking-wide text-sm mb-4 glow-border"
           >
-            {loading ? "Signing in..." : "Sign In"}
+            {demoLoading ? "Starting trial..." : "✦ Try It Free — 1 Free Conversion"}
           </button>
-        </form>
+
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-xs text-muted">or sign in</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label
+                htmlFor="email"
+                className="block text-xs font-medium text-muted mb-1 tracking-wide uppercase"
+              >
+                Email Address
+              </label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoFocus
+                className="w-full px-4 py-2.5 bg-surface border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary placeholder-muted/50 text-sm"
+                placeholder="your@email.com"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="password"
+                className="block text-xs font-medium text-muted mb-1 tracking-wide uppercase"
+              >
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="w-full px-4 py-2.5 bg-surface border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary placeholder-muted/50 text-sm"
+                placeholder="Enter shared password"
+              />
+            </div>
+
+            {error && (
+              <div
+                role="alert"
+                className="text-red-400 text-sm bg-red-950/40 border border-red-800/50 px-3 py-2 rounded-lg"
+              >
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full border border-border text-muted hover:border-primary hover:text-primary font-medium py-2.5 px-4 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed tracking-wide text-sm"
+            >
+              {loading ? "Signing in..." : "Sign In"}
+            </button>
+          </form>
+
+          {/* Learn More accordion */}
+          <div className="mt-6 border border-border rounded-lg overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setLearnOpen(!learnOpen)}
+              className="w-full flex items-center justify-between px-4 py-3 text-sm text-muted hover:text-primary transition-colors"
+            >
+              <span className="font-medium tracking-wide">Learn More ▾</span>
+              <span className="text-xs">{learnOpen ? "▲" : "▼"}</span>
+            </button>
+            {learnOpen && (
+              <div className="px-4 pb-4 border-t border-border text-sm text-muted space-y-4">
+                <div className="pt-3">
+                  <p className="text-text/80 text-xs leading-relaxed mb-3">
+                    Upload a PDF or DOCX syllabus and receive a fully WCAG 2.2-compliant,
+                    properly structured Word document ready for assistive technology.
+                  </p>
+                  <h2 className="text-xs font-semibold text-primary uppercase tracking-wider mb-2">
+                    How It Works
+                  </h2>
+                  <ol className="space-y-1 text-xs list-decimal list-inside">
+                    <li>Upload a PDF or DOCX syllabus</li>
+                    <li>AI analyzes and restructures for accessibility</li>
+                    <li>Download a fully compliant, tagged Word document</li>
+                  </ol>
+                </div>
+                <div>
+                  <h2 className="text-xs font-semibold text-primary uppercase tracking-wider mb-2">
+                    AI Capabilities
+                  </h2>
+                  <ul className="space-y-1 text-xs">
+                    {[
+                      "Enforces semantic heading hierarchy (H1→H2→H3)",
+                      "Rewrites vague links into descriptive hyperlinks",
+                      "Converts content into proper numbered and bulleted lists",
+                      "Formats tables with proper header rows for screen readers",
+                      "Sets document language metadata for assistive technology",
+                      "Inserts missing accessibility accommodation statements",
+                      "Preserves all original content — restructures without removing",
+                    ].map((cap) => (
+                      <li key={cap} className="flex gap-2">
+                        <span className="text-primary mt-0.5">✓</span>
+                        <span>{cap}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <p className="text-center text-xs text-muted/50 mt-4">
+          A tool by{" "}
+          <a
+            href="https://esdesigns.org"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary/60 hover:text-primary transition-colors"
+          >
+            esdesigns.org
+          </a>
+        </p>
       </div>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginPageInner />
+    </Suspense>
   );
 }

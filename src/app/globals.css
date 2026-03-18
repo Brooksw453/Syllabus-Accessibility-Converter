@@ -1,17 +1,17 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-primary: #00e5ff;
-  --color-primary-dark: #00b8d4;
-  --color-accent: #00ffff;
-  --color-accent-hover: #33ffff;
-  --color-surface: #0a0e1a;
-  --color-surface-card: #0f1629;
-  --color-surface-elevated: #141c33;
-  --color-border: #1e2a4a;
-  --color-border-glow: #00e5ff40;
-  --color-muted: #7a8ba8;
-  --color-text: #e0e6ef;
+  --color-primary: #22c55e;
+  --color-primary-dark: #16a34a;
+  --color-accent: #4ade80;
+  --color-accent-hover: #86efac;
+  --color-surface: #080e0a;
+  --color-surface-card: #0c1410;
+  --color-surface-elevated: #111d15;
+  --color-border: #1a2e20;
+  --color-border-glow: #22c55e40;
+  --color-muted: #6b8a75;
+  --color-text: #ddeee4;
   --color-orange: #ff8c00;
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
 }
@@ -33,13 +33,36 @@ body {
 }
 
 .glow-text {
-  text-shadow: 0 0 10px #00e5ff80, 0 0 30px #00e5ff40;
+  text-shadow: 0 0 10px #22c55e80, 0 0 30px #22c55e40;
 }
 
 .glow-border {
-  box-shadow: 0 0 15px #00e5ff15, inset 0 0 15px #00e5ff05;
+  box-shadow: 0 0 15px #22c55e15, inset 0 0 15px #22c55e05;
 }
 
 .glow-border-active {
-  box-shadow: 0 0 20px #00e5ff30, inset 0 0 20px #00e5ff10;
+  box-shadow: 0 0 20px #22c55e30, inset 0 0 20px #22c55e10;
+}
+
+/* Scan bar animation for the A11y header */
+@keyframes scan {
+  0%   { transform: translateY(-100%); opacity: 0; }
+  15%  { opacity: 0.7; }
+  85%  { opacity: 0.7; }
+  100% { transform: translateY(500%); opacity: 0; }
+}
+
+.scan-bar {
+  position: relative;
+  overflow: hidden;
+}
+
+.scan-bar::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #22c55e, #4ade80, #22c55e, transparent);
+  animation: scan 3s ease-in-out infinite;
 }
