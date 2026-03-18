@@ -11,20 +11,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: { text: string };
+  let body: { text: string; fileName?: string };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
-  const { text } = body;
+  const { text, fileName } = body;
   if (!text?.trim()) {
     return NextResponse.json(
       { error: "No text content provided." },
       { status: 400 }
     );
   }
+
+  // Log usage to Vercel Function Logs (visible in Vercel dashboard → Logs tab)
+  const userEmail = request.cookies.get("syllabus-user-email")?.value ?? "unknown";
+  const timestamp = new Date().toISOString();
+  console.log(`[USAGE] time=${timestamp} | email=${userEmail} | file=${fileName ?? "unknown"}`);
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {

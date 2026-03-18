@@ -71,7 +71,7 @@ export default function UploadPage() {
         const res = await fetch("/api/process-syllabus", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: extractedText }),
+          body: JSON.stringify({ text: extractedText, fileName: file.name }),
           signal: controller.signal,
         });
 
@@ -172,8 +172,9 @@ export default function UploadPage() {
       const blob = await generateAccessibleDocxBlob(documentData);
 
       // Trigger download — derive filename from original: spaces→hyphens, strip ext, append (accessible)
-      const baseName = fileName.replace(/\.[^/.]+$/, ""); // strip extension
-      const safeName = baseName.replace(/\s+/g, "-");     // spaces → hyphens
+      // Use file.name directly (avoids stale closure on fileName state)
+      const baseName = file.name.replace(/\.[^/.]+$/, ""); // strip extension
+      const safeName = baseName.replace(/\s+/g, "-");      // spaces → hyphens
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
