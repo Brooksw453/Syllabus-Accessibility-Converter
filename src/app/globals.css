@@ -1,19 +1,24 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-primary: #1e3a5f;
-  --color-primary-light: #2a4f7f;
-  --color-accent: #0d6efd;
-  --color-accent-hover: #0b5ed7;
-  --color-surface: #f8f9fa;
-  --color-border: #dee2e6;
-  --color-muted: #6c757d;
+  --color-primary: #00e5ff;
+  --color-primary-dark: #00b8d4;
+  --color-accent: #00ffff;
+  --color-accent-hover: #33ffff;
+  --color-surface: #0a0e1a;
+  --color-surface-card: #0f1629;
+  --color-surface-elevated: #141c33;
+  --color-border: #1e2a4a;
+  --color-border-glow: #00e5ff40;
+  --color-muted: #7a8ba8;
+  --color-text: #e0e6ef;
+  --color-orange: #ff8c00;
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
 }
 
 body {
   background: var(--color-surface);
-  color: #1a1a1a;
+  color: var(--color-text);
   font-family: var(--font-sans);
 }
 
@@ -25,4 +30,16 @@ body {
 
 .animate-spin {
   animation: spin 1s linear infinite;
+}
+
+.glow-text {
+  text-shadow: 0 0 10px #00e5ff80, 0 0 30px #00e5ff40;
+}
+
+.glow-border {
+  box-shadow: 0 0 15px #00e5ff15, inset 0 0 15px #00e5ff05;
+}
+
+.glow-border-active {
+  box-shadow: 0 0 20px #00e5ff30, inset 0 0 20px #00e5ff10;
 }

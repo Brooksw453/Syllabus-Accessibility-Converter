@@ -36,9 +36,9 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
+      <div className="w-full max-w-md bg-surface-card border border-border rounded-2xl p-8 glow-border">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-primary mb-2">
+          <h1 className="text-2xl font-bold text-primary glow-text mb-2 tracking-wide">
             Syllabus Accessibility Converter
           </h1>
           <p className="text-muted text-sm">
@@ -50,7 +50,7 @@ export default function LoginPage() {
           <div>
             <label
               htmlFor="password"
-              className="block text-sm font-medium mb-1"
+              className="block text-sm font-medium text-muted mb-1 tracking-wide uppercase"
             >
               Password
             </label>
@@ -61,7 +61,7 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
               autoFocus
-              className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
+              className="w-full px-4 py-2.5 bg-surface border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary placeholder-muted/50"
               placeholder="Enter shared password"
             />
           </div>
@@ -69,7 +69,7 @@ export default function LoginPage() {
           {error && (
             <div
               role="alert"
-              className="text-red-600 text-sm bg-red-50 px-3 py-2 rounded-lg"
+              className="text-red-400 text-sm bg-red-950/40 border border-red-800/50 px-3 py-2 rounded-lg"
             >
               {error}
             </div>
@@ -78,7 +78,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-accent hover:bg-accent-hover text-white font-medium py-2.5 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full border-2 border-primary text-primary hover:bg-primary/10 font-medium py-2.5 px-4 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed tracking-wide uppercase text-sm"
           >
             {loading ? "Signing in..." : "Sign In"}
           </button>

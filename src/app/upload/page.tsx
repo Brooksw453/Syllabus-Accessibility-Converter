@@ -199,24 +199,25 @@ export default function UploadPage() {
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-2xl bg-white rounded-2xl shadow-lg p-8">
+      <div className="w-full max-w-2xl bg-surface-card border border-border rounded-2xl p-8 glow-border">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-primary mb-2">
+          <h1 className="text-2xl font-bold text-primary glow-text mb-2 tracking-wide">
             Upload Your Syllabus
           </h1>
           <p className="text-muted text-sm">
-            Upload a <strong>.docx</strong> or <strong>.pdf</strong> syllabus to
-            generate an ADA-compliant version.
+            Upload a <strong className="text-text">.docx</strong> or{" "}
+            <strong className="text-text">.pdf</strong> syllabus to generate an
+            ADA-compliant version.
           </p>
         </div>
 
         {!isProcessing && (
           <div
             {...getRootProps()}
-            className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-colors ${
+            className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all duration-200 ${
               isDragActive
-                ? "border-accent bg-blue-50"
-                : "border-border hover:border-accent hover:bg-blue-50/50"
+                ? "border-accent bg-primary/5 glow-border-active"
+                : "border-border hover:border-primary hover:bg-primary/5"
             }`}
           >
             <input {...getInputProps()} />
@@ -249,23 +250,25 @@ export default function UploadPage() {
 
         {isProcessing && (
           <div className="flex flex-col items-center gap-4 py-12">
-            <div className="w-12 h-12 border-4 border-accent border-t-transparent rounded-full animate-spin" />
+            <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
             <div className="text-center">
-              <p className="font-medium text-primary">{statusMessage}</p>
+              <p className="font-medium text-primary glow-text">
+                {statusMessage}
+              </p>
               <p className="text-sm text-muted mt-1">
-                Analyzing <strong>{fileName}</strong> for ADA compliance. This
-                may take a moment.
+                Analyzing <strong className="text-text">{fileName}</strong> for
+                ADA compliance. This may take a moment.
               </p>
             </div>
           </div>
         )}
 
         {status === "done" && (
-          <div className="mt-6 text-center bg-green-50 text-green-800 px-4 py-3 rounded-lg">
+          <div className="mt-6 text-center bg-emerald-950/40 border border-emerald-700/50 text-emerald-300 px-4 py-3 rounded-lg">
             <p className="font-medium">
               Your accessible syllabus has been downloaded.
             </p>
-            <p className="text-sm mt-1">
+            <p className="text-sm mt-1 text-emerald-400/80">
               Upload another file above to convert again.
             </p>
           </div>
@@ -274,7 +277,7 @@ export default function UploadPage() {
         {status === "error" && (
           <div
             role="alert"
-            className="mt-6 text-center bg-red-50 text-red-700 px-4 py-3 rounded-lg"
+            className="mt-6 text-center bg-red-950/40 border border-red-800/50 text-red-400 px-4 py-3 rounded-lg"
           >
             <p className="font-medium">Something went wrong</p>
             <p className="text-sm mt-1">{error}</p>
