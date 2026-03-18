@@ -39,7 +39,7 @@ export default function UploadPage() {
         extractedText = result.value;
       } else if (file.name.toLowerCase().endsWith(".pdf")) {
         const pdfjsLib = await import("pdfjs-dist");
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
         const pages: string[] = [];
         for (let i = 1; i <= pdf.numPages; i++) {
