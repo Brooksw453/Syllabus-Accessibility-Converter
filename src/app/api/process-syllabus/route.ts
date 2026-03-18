@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/auth";
 import { SYSTEM_PROMPT } from "@/lib/system-prompt";
-import Anthropic from "@anthropic-ai/sdk";
 
-// Edge Runtime: no Node.js serverless timeout issues,
-// native streaming support, keeps connection alive properly.
+// Edge Runtime for streaming support
 export const runtime = "edge";
 
 export async function POST(request: NextRequest) {
@@ -27,60 +25,96 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Validate API key before starting stream
-  if (!process.env.ANTHROPIC_API_KEY) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
     return NextResponse.json(
       { error: "API key not configured on server." },
       { status: 500 }
     );
   }
 
-  // Make the API call first, then stream the result.
-  // This ensures errors (bad key, rate limit, etc.) return proper HTTP errors
-  // instead of silently dying mid-stream.
-  const anthropic = new Anthropic();
-
-  let stream;
+  // Use raw fetch instead of the SDK — more reliable in Edge Runtime.
+  // The SDK's streaming can hang in Vercel Edge functions.
+  let apiRes: Response;
   try {
-    stream = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 16384,
-      stream: true,
-      system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: "user",
-          content: `Here is the syllabus text to make ADA compliant:\n\n${text}`,
-        },
-      ],
+    apiRes = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 16384,
+        stream: true,
+        system: SYSTEM_PROMPT,
+        messages: [
+          {
+            role: "user",
+            content: `Here is the syllabus text to make ADA compliant:\n\n${text}`,
+          },
+        ],
+      }),
     });
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Unknown API error";
-    console.error("Anthropic API error:", message);
+      error instanceof Error ? error.message : "Network error";
     return NextResponse.json({ error: message }, { status: 502 });
   }
 
-  // Stream is established — pipe tokens to client
+  if (!apiRes.ok) {
+    const errBody = await apiRes.text();
+    let message = `Anthropic API error (${apiRes.status})`;
+    try {
+      const parsed = JSON.parse(errBody);
+      message = parsed?.error?.message || message;
+    } catch {
+      // use default message
+    }
+    return NextResponse.json({ error: message }, { status: apiRes.status });
+  }
+
+  // Pipe the SSE stream, extracting text deltas
   const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+
   const readable = new ReadableStream({
     async start(controller) {
       try {
-        for await (const event of stream) {
-          if (
-            event.type === "content_block_delta" &&
-            event.delta.type === "text_delta"
-          ) {
-            controller.enqueue(encoder.encode(event.delta.text));
+        const reader = apiRes.body!.getReader();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const data = line.slice(6);
+            if (data === "[DONE]") continue;
+
+            try {
+              const event = JSON.parse(data);
+              if (
+                event.type === "content_block_delta" &&
+                event.delta?.type === "text_delta"
+              ) {
+                controller.enqueue(encoder.encode(event.delta.text));
+              }
+            } catch {
+              // skip malformed SSE chunks
+            }
           }
         }
       } catch (error) {
-        console.error("Stream error:", error);
         const message =
           error instanceof Error ? error.message : "Stream failed";
-        controller.enqueue(
-          encoder.encode(`\n__ERROR__: ${message}`)
-        );
+        controller.enqueue(encoder.encode(`\n__ERROR__: ${message}`));
       }
       controller.close();
     },
