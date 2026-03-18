@@ -4,6 +4,7 @@ import { SYSTEM_PROMPT } from "@/lib/system-prompt";
 
 // Edge Runtime for streaming support
 export const runtime = "edge";
+export const maxDuration = 60; // seconds — Vercel Pro allows up to 300
 
 export async function POST(request: NextRequest) {
   if (!(await isAuthenticated())) {
