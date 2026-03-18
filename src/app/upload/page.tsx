@@ -37,8 +37,24 @@ export default function UploadPage() {
       if (file.name.toLowerCase().endsWith(".docx")) {
         const result = await mammoth.extractRawText({ arrayBuffer });
         extractedText = result.value;
+      } else if (file.name.toLowerCase().endsWith(".pdf")) {
+        const pdfjsLib = await import("pdfjs-dist");
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const pages: string[] = [];
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          pages.push(
+            content.items
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              .map((item: any) => (item.str as string) || "")
+              .join(" ")
+          );
+        }
+        extractedText = pages.join("\n\n");
       } else {
-        throw new Error("Only .docx files are currently supported.");
+        throw new Error("Unsupported file type. Please upload a .docx or .pdf.");
       }
 
       if (!extractedText.trim()) {
@@ -163,6 +179,7 @@ export default function UploadPage() {
     accept: {
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
         [".docx"],
+      "application/pdf": [".pdf"],
     },
     maxFiles: 1,
     disabled: status !== "idle" && status !== "done" && status !== "error",
@@ -188,8 +205,8 @@ export default function UploadPage() {
             Upload Your Syllabus
           </h1>
           <p className="text-muted text-sm">
-            Upload a <strong>.docx</strong> syllabus to generate an
-            ADA-compliant version.
+            Upload a <strong>.docx</strong> or <strong>.pdf</strong> syllabus to
+            generate an ADA-compliant version.
           </p>
         </div>
 
@@ -223,7 +240,9 @@ export default function UploadPage() {
                   ? "Drop the file here..."
                   : "Drag & drop your syllabus here, or click to browse"}
               </p>
-              <p className="text-xs text-muted">Supported format: .docx</p>
+              <p className="text-xs text-muted">
+                Supported formats: .docx, .pdf
+              </p>
             </div>
           </div>
         )}
