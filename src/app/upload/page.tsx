@@ -63,23 +63,36 @@ export default function UploadPage() {
 
       // Step 2: Send extracted TEXT (not the file) to the API
       setStatus("processing");
-      const res = await fetch("/api/process-syllabus", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: extractedText }),
-      });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 120_000); // 2 min timeout
 
-      if (!res.ok) {
-        const contentType = res.headers.get("content-type") || "";
-        if (contentType.includes("application/json")) {
-          const data = await res.json();
-          throw new Error(data.error || "Processing failed.");
+      let rawText: string;
+      try {
+        const res = await fetch("/api/process-syllabus", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: extractedText }),
+          signal: controller.signal,
+        });
+
+        if (!res.ok) {
+          const contentType = res.headers.get("content-type") || "";
+          if (contentType.includes("application/json")) {
+            const data = await res.json();
+            throw new Error(data.error || "Processing failed.");
+          }
+          throw new Error(`Server error (${res.status}). Please try again.`);
         }
-        throw new Error(`Server error (${res.status}). Please try again.`);
-      }
 
-      // res.text() accumulates the entire streamed response
-      const rawText = await res.text();
+        rawText = await res.text();
+      } catch (fetchErr) {
+        if (fetchErr instanceof DOMException && fetchErr.name === "AbortError") {
+          throw new Error("Request timed out. The document may be too large. Please try again.");
+        }
+        throw fetchErr;
+      } finally {
+        clearTimeout(timeout);
+      }
 
       if (!rawText.trim()) {
         throw new Error("No document data received. Please try again.");
