@@ -197,6 +197,12 @@ function LoginPageInner() {
             {learnOpen && (
               <div className="px-4 pb-4 border-t border-border text-sm text-muted space-y-4">
                 <div className="pt-3">
+                  <div className="flex gap-2 items-start bg-primary/5 border border-primary/20 rounded-lg px-3 py-2 mb-3">
+                    <span className="text-primary mt-0.5">🔒</span>
+                    <p className="text-xs text-primary/80 leading-relaxed">
+                      <strong>Private &amp; secure.</strong> Your documents are processed in memory and never stored. No document data, file contents, or personal information is retained after conversion.
+                    </p>
+                  </div>
                   <p className="text-text/80 text-xs leading-relaxed mb-3">
                     Upload a PDF or DOCX syllabus and receive a fully WCAG 2.2-compliant,
                     properly structured Word document ready for assistive technology.

@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (password !== sharedPassword) {
-    return NextResponse.json({ error: "Invalid password." }, { status: 401 });
+    return NextResponse.json({ error: "Invalid access code." }, { status: 401 });
   }
 
   const response = NextResponse.json({ success: true });
