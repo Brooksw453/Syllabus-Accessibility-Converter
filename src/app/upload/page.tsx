@@ -171,11 +171,13 @@ export default function UploadPage() {
       // Step 4: Generate DOCX in the browser
       const blob = await generateAccessibleDocxBlob(documentData);
 
-      // Trigger download
+      // Trigger download — derive filename from original: spaces→hyphens, strip ext, append (accessible)
+      const baseName = fileName.replace(/\.[^/.]+$/, ""); // strip extension
+      const safeName = baseName.replace(/\s+/g, "-");     // spaces → hyphens
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "accessible-syllabus.docx";
+      a.download = `${safeName}(accessible).docx`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -216,11 +218,11 @@ export default function UploadPage() {
       <div className="w-full max-w-2xl bg-surface-card border border-border rounded-2xl p-8 glow-border">
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-primary glow-text mb-2 tracking-wide">
-            Upload Your Syllabus
+            Upload Your Document
           </h1>
           <p className="text-muted text-sm">
             Upload a <strong className="text-text">.docx</strong> or{" "}
-            <strong className="text-text">.pdf</strong> syllabus to generate an
+            <strong className="text-text">.pdf</strong> document to generate an
             ADA-compliant version.
           </p>
         </div>
@@ -253,7 +255,7 @@ export default function UploadPage() {
               <p className="text-muted">
                 {isDragActive
                   ? "Drop the file here..."
-                  : "Drag & drop your syllabus here, or click to browse"}
+                  : "Drag & drop your document here, or click to browse"}
               </p>
               <p className="text-xs text-muted">
                 Supported formats: .docx, .pdf
@@ -271,7 +273,7 @@ export default function UploadPage() {
               </p>
               <p className="text-sm text-muted mt-1">
                 Analyzing <strong className="text-text">{fileName}</strong> for
-                ADA compliance. This may take a moment.
+                ADA compliance. This may take up to two minutes.
               </p>
             </div>
           </div>
@@ -280,7 +282,7 @@ export default function UploadPage() {
         {status === "done" && (
           <div className="mt-6 text-center bg-emerald-950/40 border border-emerald-700/50 text-emerald-300 px-4 py-3 rounded-lg">
             <p className="font-medium">
-              Your accessible syllabus has been downloaded.
+              Your accessible document has been downloaded.
             </p>
             <p className="text-sm mt-1 text-emerald-400/80">
               Upload another file above to convert again.
