@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 function LoginPageInner() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [accessCode, setAccessCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
@@ -15,7 +15,7 @@ function LoginPageInner() {
 
   useEffect(() => {
     if (searchParams.get("trial") === "used") {
-      setError("Your free trial has been used. Enter your password to continue.");
+      setError("Your free trial has been used. Enter your access code to continue.");
     }
   }, [searchParams]);
 
@@ -27,13 +27,13 @@ function LoginPageInner() {
       const res = await fetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password: accessCode }),
       });
       if (res.ok) {
         router.push("/upload");
       } else {
         const data = await res.json();
-        setError(data.error || "Invalid password.");
+        setError(data.error || "Invalid access code.");
       }
     } catch {
       setError("Something went wrong. Please try again.");
@@ -43,15 +43,25 @@ function LoginPageInner() {
   }
 
   async function handleTryFree() {
+    if (!email.trim()) return;
     setDemoLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/demo", { method: "POST" });
+      const res = await fetch("/api/demo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
       if (res.ok) {
         const data = await res.json();
-        router.push(data.redirect);
+        if (data.error) {
+          setError(data.error);
+        } else {
+          router.push(data.redirect);
+        }
       } else {
-        setError("Could not start free trial. Please try again.");
+        const data = await res.json();
+        setError(data.error || "Could not start free trial. Please try again.");
       }
     } catch {
       setError("Something went wrong. Please try again.");
@@ -60,16 +70,18 @@ function LoginPageInner() {
     }
   }
 
+  const emailValid = email.trim().length > 0 && email.includes("@");
+
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* A11y scan bar header */}
+        {/* A11Y scan bar header */}
         <div className="scan-bar bg-surface-elevated border border-primary/30 rounded-t-xl px-6 py-3 flex items-center justify-between mb-0">
           <span className="text-xs font-mono text-primary/60 tracking-widest uppercase">
             accessibility.esdesigns.org
           </span>
           <span className="text-primary font-bold tracking-widest text-sm uppercase glow-text">
-            Syllabus A11y
+            Syllabus A11Y
           </span>
         </div>
 
@@ -77,22 +89,46 @@ function LoginPageInner() {
         <div className="bg-surface-card border border-t-0 border-border rounded-b-2xl p-8 glow-border">
           <div className="text-center mb-6">
             <h1 className="text-2xl font-bold text-primary glow-text mb-1 tracking-wide">
-              Syllabus A11y
+              Syllabus A11Y
             </h1>
             <p className="text-muted text-sm">
               AI-powered accessibility converter for course documents.
             </p>
           </div>
 
+          {/* Email — shared by both Try It Free and Sign In */}
+          <div className="mb-4">
+            <label
+              htmlFor="email"
+              className="block text-xs font-medium text-muted mb-1 tracking-wide uppercase"
+            >
+              Email Address
+            </label>
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoFocus
+              className="w-full px-4 py-2.5 bg-surface border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary placeholder-muted/50 text-sm"
+              placeholder="your@email.com"
+            />
+          </div>
+
           {/* Try It Free button */}
           <button
             type="button"
             onClick={handleTryFree}
-            disabled={demoLoading}
-            className="w-full bg-primary/10 border-2 border-primary text-primary hover:bg-primary/20 font-semibold py-3 px-4 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed tracking-wide text-sm mb-4 glow-border"
+            disabled={demoLoading || !emailValid}
+            className="w-full bg-primary/10 border-2 border-primary text-primary hover:bg-primary/20 font-semibold py-3 px-4 rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed tracking-wide text-sm mb-4 glow-border"
           >
             {demoLoading ? "Starting trial..." : "✦ Try It Free — 1 Free Conversion"}
           </button>
+          {!emailValid && (
+            <p className="text-xs text-muted/60 text-center -mt-3 mb-4">
+              Enter your email above to try it free
+            </p>
+          )}
 
           <div className="flex items-center gap-3 mb-4">
             <div className="flex-1 h-px bg-border" />
@@ -103,37 +139,19 @@ function LoginPageInner() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label
-                htmlFor="email"
+                htmlFor="access-code"
                 className="block text-xs font-medium text-muted mb-1 tracking-wide uppercase"
               >
-                Email Address
+                Access Code
               </label>
               <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoFocus
-                className="w-full px-4 py-2.5 bg-surface border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary placeholder-muted/50 text-sm"
-                placeholder="your@email.com"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-xs font-medium text-muted mb-1 tracking-wide uppercase"
-              >
-                Password
-              </label>
-              <input
-                id="password"
+                id="access-code"
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                value={accessCode}
+                onChange={(e) => setAccessCode(e.target.value)}
                 required
                 className="w-full px-4 py-2.5 bg-surface border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary placeholder-muted/50 text-sm"
-                placeholder="Enter shared password"
+                placeholder="Enter access code"
               />
             </div>
 
@@ -167,13 +185,13 @@ function LoginPageInner() {
           </div>
 
           {/* Learn More accordion */}
-          <div className="mt-6 border border-border rounded-lg overflow-hidden">
+          <div className="mt-4 border border-border rounded-lg overflow-hidden">
             <button
               type="button"
               onClick={() => setLearnOpen(!learnOpen)}
               className="w-full flex items-center justify-between px-4 py-3 text-sm text-muted hover:text-primary transition-colors"
             >
-              <span className="font-medium tracking-wide">Learn More ▾</span>
+              <span className="font-medium tracking-wide">Learn More</span>
               <span className="text-xs">{learnOpen ? "▲" : "▼"}</span>
             </button>
             {learnOpen && (

@@ -229,7 +229,7 @@ function UploadPageInner() {
             accessibility.esdesigns.org
           </span>
           <span className="text-primary font-bold tracking-widest text-sm uppercase glow-text">
-            Syllabus A11y
+            Syllabus A11Y
           </span>
         </div>
 
