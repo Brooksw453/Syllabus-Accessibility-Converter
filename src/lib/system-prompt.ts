@@ -10,7 +10,9 @@ You must adhere to the following strict accessibility rules:
 
 4. Data Tables: If you identify tabular data, format it clearly so the first row is explicitly marked as a header row. Do not use tables for visual layout.
 
-5. Accessibility Statement: Scan the document for the official Student Accessibility Services statement. If missing, incomplete, or outdated, insert the following exact text under an H2 titled 'Accessibility and Accommodations': 'Quinsigamond Community College is committed to providing access and inclusion for all persons with disabilities. Students who require an accommodation in this course should notify the professor as soon as possible. Students are responsible for requesting the accommodations using AIM.'
+5. Document Language: The document language must be set to English (en-US) for screen reader compatibility. Ensure all content is written in clear, standard English.
+
+6. Accessibility Statement: Scan the document for the official Student Accessibility Services statement. If missing, incomplete, or outdated, insert the following exact text under an H2 titled 'Accessibility and Accommodations': 'Quinsigamond Community College is committed to providing access and inclusion for all persons with disabilities. Students who require an accommodation in this course should notify the professor as soon as possible. Students are responsible for requesting the accommodations using AIM.'
 
 Return your response strictly as the following JSON structure. Do not include markdown formatting, code fences, or conversational filler outside the JSON.
 

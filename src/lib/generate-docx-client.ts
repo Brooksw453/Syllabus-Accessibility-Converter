@@ -215,6 +215,21 @@ export async function generateAccessibleDocxBlob(
     numbering: {
       config: numberingConfigs,
     },
+    settings: {
+      defaultTabStop: 720,
+      compat: {},
+    },
+    styles: {
+      default: {
+        document: {
+          run: {
+            language: {
+              value: "en-US",
+            },
+          },
+        },
+      },
+    },
     sections: [
       {
         properties: {},
