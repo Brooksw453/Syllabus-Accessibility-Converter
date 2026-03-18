@@ -14,186 +14,233 @@ type Status =
   | "extracting"
   | "processing"
   | "generating"
+  | "preview"
   | "done"
   | "error";
+
+function ShareLink() {
+  const [copied, setCopied] = useState(false);
+  const shareUrl = "https://accessibility.esdesigns.org/?ref=your-name";
+  return (
+    <div className="flex gap-2 items-center">
+      <code className="text-xs bg-surface px-2 py-1 rounded flex-1 truncate text-primary/70 border border-border">
+        {shareUrl}
+      </code>
+      <button
+        type="button"
+        onClick={() => {
+          navigator.clipboard.writeText(shareUrl);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        }}
+        className="text-xs text-primary border border-primary/30 px-2 py-1 rounded hover:bg-primary/10 transition-colors whitespace-nowrap"
+      >
+        {copied ? "Copied!" : "Copy"}
+      </button>
+    </div>
+  );
+}
 
 function UploadPageInner() {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
   const [fileName, setFileName] = useState("");
   const [learnOpen, setLearnOpen] = useState(false);
+  const [changes, setChanges] = useState<string[]>([]);
+  const [pendingBlob, setPendingBlob] = useState<Blob | null>(null);
+  const [pendingDownloadName, setPendingDownloadName] = useState("");
+  const [batchTotal, setBatchTotal] = useState(0);
+  const [batchIndex, setBatchIndex] = useState(0);
+  const [batchResults, setBatchResults] = useState<{ name: string; ok: boolean }[]>([]);
   const searchParams = useSearchParams();
   const isDemo = searchParams.get("demo") === "1";
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    const file = acceptedFiles[0];
-    if (!file) return;
+  async function processOneFile(file: File): Promise<{ blob: Blob; downloadName: string; changes: string[] }> {
+    // Step 1: Extract text in the BROWSER
+    const arrayBuffer = await file.arrayBuffer();
+    let extractedText: string;
 
-    setFileName(file.name);
-    setError("");
-
-    try {
-      // Step 1: Extract text in the BROWSER (no server needed)
-      setStatus("extracting");
-      const arrayBuffer = await file.arrayBuffer();
-      let extractedText: string;
-
-      if (file.name.toLowerCase().endsWith(".docx")) {
-        const result = await mammoth.extractRawText({ arrayBuffer });
-        extractedText = result.value;
-      } else if (file.name.toLowerCase().endsWith(".pdf")) {
-        const pdfjsLib = await import("pdfjs-dist");
-        pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        const pages: string[] = [];
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const content = await page.getTextContent();
-          pages.push(
-            content.items
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              .map((item: any) => (item.str as string) || "")
-              .join(" ")
-          );
-        }
-        extractedText = pages.join("\n\n");
-      } else {
-        throw new Error("Unsupported file type. Please upload a .docx or .pdf.");
-      }
-
-      if (!extractedText.trim()) {
-        throw new Error("Could not extract any text from the file.");
-      }
-
-      // Step 2: Send extracted TEXT (not the file) to the API
-      setStatus("processing");
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 120_000); // 2 min timeout
-
-      let rawText: string;
-      try {
-        const res = await fetch("/api/process-syllabus", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: extractedText, fileName: file.name }),
-          signal: controller.signal,
-        });
-
-        if (!res.ok) {
-          const contentType = res.headers.get("content-type") || "";
-          if (contentType.includes("application/json")) {
-            const data = await res.json();
-            throw new Error(data.error || "Processing failed.");
-          }
-          throw new Error(`Server error (${res.status}). Please try again.`);
-        }
-
-        rawText = await res.text();
-      } catch (fetchErr) {
-        if (fetchErr instanceof DOMException && fetchErr.name === "AbortError") {
-          throw new Error("Request timed out. The document may be too large. Please try again.");
-        }
-        throw fetchErr;
-      } finally {
-        clearTimeout(timeout);
-      }
-
-      if (!rawText.trim()) {
-        throw new Error("No document data received. Please try again.");
-      }
-
-      if (rawText.includes("__ERROR__")) {
-        const errDetail = rawText.split("__ERROR__:")[1]?.trim() || "Unknown error";
-        throw new Error(`Server error: ${errDetail}`);
-      }
-
-      // Step 3: Parse JSON and generate DOCX in the browser
-      setStatus("generating");
-
-      // Extract JSON: find outermost { } using brace matching
-      const firstBrace = rawText.indexOf("{");
-      if (firstBrace === -1) {
-        throw new Error(
-          "AI did not return JSON. Response starts with: " +
-            rawText.slice(0, 120)
+    if (file.name.toLowerCase().endsWith(".docx")) {
+      const result = await mammoth.extractRawText({ arrayBuffer });
+      extractedText = result.value;
+    } else if (file.name.toLowerCase().endsWith(".pdf")) {
+      const pdfjsLib = await import("pdfjs-dist");
+      pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const pages: string[] = [];
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        pages.push(
+          content.items
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .map((item: any) => (item.str as string) || "")
+            .join(" ")
         );
       }
-
-      // Walk from firstBrace, counting braces to find the matching close
-      let depth = 0;
-      let lastBrace = -1;
-      let inString = false;
-      let escaped = false;
-      for (let i = firstBrace; i < rawText.length; i++) {
-        const ch = rawText[i];
-        if (escaped) {
-          escaped = false;
-          continue;
-        }
-        if (ch === "\\") {
-          escaped = true;
-          continue;
-        }
-        if (ch === '"') {
-          inString = !inString;
-          continue;
-        }
-        if (inString) continue;
-        if (ch === "{") depth++;
-        if (ch === "}") {
-          depth--;
-          if (depth === 0) {
-            lastBrace = i;
-            break;
-          }
-        }
-      }
-
-      if (lastBrace === -1) {
-        throw new Error(
-          "AI returned incomplete JSON (truncated). Response length: " +
-            rawText.length +
-            " chars. Starts with: " +
-            rawText.slice(0, 120)
-        );
-      }
-
-      const jsonString = rawText.slice(firstBrace, lastBrace + 1);
-
-      let documentData: AccessibleDocument;
-      try {
-        documentData = JSON.parse(jsonString);
-      } catch {
-        throw new Error(
-          "AI returned malformed JSON. Length: " +
-            jsonString.length +
-            ". Starts with: " +
-            jsonString.slice(0, 120)
-        );
-      }
-
-      // Step 4: Generate DOCX in the browser
-      const blob = await generateAccessibleDocxBlob(documentData);
-
-      // Trigger download — derive filename from original: spaces→hyphens, strip ext, append (accessible)
-      // Use file.name directly (avoids stale closure on fileName state)
-      const baseName = file.name.replace(/\.[^/.]+$/, ""); // strip extension
-      const safeName = baseName.replace(/\s+/g, "-");      // spaces → hyphens
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${safeName}(accessible).docx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      setStatus("done");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred.");
-      setStatus("error");
+      extractedText = pages.join("\n\n");
+    } else {
+      throw new Error("Unsupported file type. Please upload a .docx or .pdf.");
     }
+
+    if (!extractedText.trim()) {
+      throw new Error("Could not extract any text from the file.");
+    }
+
+    // Step 2: Send extracted text to the API
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 120_000);
+
+    let rawText: string;
+    try {
+      const res = await fetch("/api/process-syllabus", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: extractedText, fileName: file.name }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const contentType = res.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+          const data = await res.json();
+          throw new Error(data.error || "Processing failed.");
+        }
+        throw new Error(`Server error (${res.status}). Please try again.`);
+      }
+
+      rawText = await res.text();
+    } catch (fetchErr) {
+      if (fetchErr instanceof DOMException && fetchErr.name === "AbortError") {
+        throw new Error("Request timed out. The document may be too large. Please try again.");
+      }
+      throw fetchErr;
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    if (!rawText.trim()) throw new Error("No document data received. Please try again.");
+    if (rawText.includes("__ERROR__")) {
+      const errDetail = rawText.split("__ERROR__:")[1]?.trim() || "Unknown error";
+      throw new Error(`Server error: ${errDetail}`);
+    }
+
+    // Step 3: Parse JSON
+    const firstBrace = rawText.indexOf("{");
+    if (firstBrace === -1) throw new Error("AI did not return JSON. Response starts with: " + rawText.slice(0, 120));
+
+    let depth = 0;
+    let lastBrace = -1;
+    let inString = false;
+    let escaped = false;
+    for (let i = firstBrace; i < rawText.length; i++) {
+      const ch = rawText[i];
+      if (escaped) { escaped = false; continue; }
+      if (ch === "\\") { escaped = true; continue; }
+      if (ch === '"') { inString = !inString; continue; }
+      if (inString) continue;
+      if (ch === "{") depth++;
+      if (ch === "}") { depth--; if (depth === 0) { lastBrace = i; break; } }
+    }
+
+    if (lastBrace === -1) throw new Error("AI returned incomplete JSON (truncated). Response length: " + rawText.length + " chars.");
+
+    const jsonString = rawText.slice(firstBrace, lastBrace + 1);
+    let documentData: AccessibleDocument;
+    try {
+      documentData = JSON.parse(jsonString);
+    } catch {
+      throw new Error("AI returned malformed JSON. Length: " + jsonString.length + ". Starts with: " + jsonString.slice(0, 120));
+    }
+
+    // Step 4: Generate DOCX
+    const blob = await generateAccessibleDocxBlob(documentData);
+    const baseName = file.name.replace(/\.[^/.]+$/, "");
+    const safeName = baseName.replace(/\s+/g, "-");
+    return { blob, downloadName: `${safeName}(accessible).docx`, changes: documentData.changes ?? [] };
+  }
+
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    if (acceptedFiles.length === 0) return;
+
+    setError("");
+    setBatchResults([]);
+
+    const isBatch = acceptedFiles.length > 1;
+
+    if (isBatch) {
+      setBatchTotal(acceptedFiles.length);
+      setBatchIndex(0);
+      const results: { name: string; ok: boolean }[] = [];
+
+      for (let i = 0; i < acceptedFiles.length; i++) {
+        const file = acceptedFiles[i];
+        setFileName(file.name);
+        setBatchIndex(i);
+        setStatus("extracting");
+
+        try {
+          setStatus("processing");
+          const { blob, downloadName } = await processOneFile(file);
+          setStatus("generating");
+          // Trigger download immediately for each file in batch
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = downloadName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          results.push({ name: file.name, ok: true });
+        } catch {
+          results.push({ name: file.name, ok: false });
+        }
+      }
+
+      setBatchResults(results);
+      setStatus("done");
+    } else {
+      // Single file — use preview flow
+      const file = acceptedFiles[0];
+      setFileName(file.name);
+      setStatus("extracting");
+
+      try {
+        setStatus("processing");
+        const { blob, downloadName, changes: fileChanges } = await processOneFile(file);
+        setStatus("generating");
+        setChanges(fileChanges);
+        setPendingBlob(blob);
+        setPendingDownloadName(downloadName);
+        setStatus("preview");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "An error occurred.");
+        setStatus("error");
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function triggerDownload(blob: Blob, downloadName: string) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = downloadName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function handleDownload() {
+    if (pendingBlob && pendingDownloadName) {
+      triggerDownload(pendingBlob, pendingDownloadName);
+      setPendingBlob(null);
+      setPendingDownloadName("");
+      setStatus("done");
+    }
+  }
 
   const trialDone = isDemo && status === "done";
 
@@ -204,7 +251,7 @@ function UploadPageInner() {
         [".docx"],
       "application/pdf": [".pdf"],
     },
-    maxFiles: 1,
+    maxFiles: isDemo ? 1 : 5,
     disabled: (status !== "idle" && status !== "done" && status !== "error") || trialDone,
   });
 
@@ -214,11 +261,13 @@ function UploadPageInner() {
     status === "generating";
 
   const statusMessage =
-    status === "extracting"
-      ? "Extracting text from document..."
-      : status === "generating"
-        ? "Generating accessible document..."
-        : "Processing Accessibility Updates...";
+    batchTotal > 1
+      ? `Processing ${batchIndex + 1} of ${batchTotal}: ${fileName}...`
+      : status === "extracting"
+        ? "Extracting text from document..."
+        : status === "generating"
+          ? "Generating accessible document..."
+          : "Processing Accessibility Updates...";
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-4">
@@ -253,7 +302,7 @@ function UploadPageInner() {
             </div>
           )}
 
-          {!isProcessing && !trialDone && (
+          {!isProcessing && status !== "preview" && !trialDone && (
             <div
               {...getRootProps()}
               className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all duration-200 ${
@@ -284,7 +333,7 @@ function UploadPageInner() {
                     : "Drag & drop your document here, or click to browse"}
                 </p>
                 <p className="text-xs text-muted">
-                  Supported formats: .docx, .pdf
+                  Supported formats: .docx, .pdf{!isDemo && " — up to 5 files"}
                 </p>
               </div>
             </div>
@@ -305,10 +354,53 @@ function UploadPageInner() {
             </div>
           )}
 
+          {status === "preview" && (
+            <div className="mt-2 bg-surface-elevated border border-primary/30 rounded-xl p-5">
+              <p className="font-semibold text-primary glow-text mb-3 text-center">
+                ✦ Accessibility improvements made
+              </p>
+              <ul className="space-y-1.5 mb-5">
+                {changes.length > 0 ? changes.map((change, i) => (
+                  <li key={i} className="flex gap-2 text-sm">
+                    <span className="text-primary mt-0.5">✓</span>
+                    <span className="text-text/80">{change}</span>
+                  </li>
+                )) : (
+                  <li className="text-sm text-muted">Document restructured for WCAG 2.2 compliance.</li>
+                )}
+              </ul>
+              <button
+                type="button"
+                onClick={handleDownload}
+                className="w-full bg-primary/10 border-2 border-primary text-primary hover:bg-primary/20 font-semibold py-3 px-4 rounded-lg transition-all duration-200 tracking-wide text-sm glow-border"
+              >
+                Download Accessible Document
+              </button>
+            </div>
+          )}
+
           {status === "done" && !trialDone && (
             <div className="mt-2 text-center bg-primary/10 border border-primary/30 text-primary px-4 py-3 rounded-lg">
-              <p className="font-medium">Your accessible document has been downloaded.</p>
-              <p className="text-sm mt-1 text-primary/70">Upload another file above to convert again.</p>
+              {batchResults.length > 1 ? (
+                <>
+                  <p className="font-medium">
+                    {batchResults.filter(r => r.ok).length} of {batchResults.length} documents converted successfully.
+                  </p>
+                  {batchResults.some(r => !r.ok) && (
+                    <ul className="text-sm mt-2 text-red-400 text-left space-y-0.5">
+                      {batchResults.filter(r => !r.ok).map(r => (
+                        <li key={r.name}>✗ {r.name} — failed</li>
+                      ))}
+                    </ul>
+                  )}
+                  <p className="text-sm mt-2 text-primary/70">Upload more files above to convert again.</p>
+                </>
+              ) : (
+                <>
+                  <p className="font-medium">Your accessible document has been downloaded.</p>
+                  <p className="text-sm mt-1 text-primary/70">Upload another file above to convert again.</p>
+                </>
+              )}
             </div>
           )}
 
@@ -399,6 +491,13 @@ function UploadPageInner() {
                       </li>
                     ))}
                   </ul>
+                </div>
+                <div className="pt-2 border-t border-border">
+                  <h2 className="text-xs font-semibold text-primary uppercase tracking-wider mb-2">
+                    Share This Tool
+                  </h2>
+                  <p className="text-xs text-muted mb-2">Send colleagues a direct link to try it free:</p>
+                  <ShareLink />
                 </div>
               </div>
             )}

@@ -71,6 +71,7 @@ function LoginPageInner() {
   }
 
   const emailValid = email.trim().length > 0 && email.includes("@");
+  const ref = searchParams.get("ref");
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-4">
@@ -95,6 +96,13 @@ function LoginPageInner() {
               AI-powered accessibility converter for course documents.
             </p>
           </div>
+
+          {/* Referral badge */}
+          {ref && (
+            <div className="mb-4 text-xs text-center text-primary/70 bg-primary/5 border border-primary/20 rounded-lg px-3 py-2">
+              Referred by <strong className="text-primary">{ref}</strong>
+            </div>
+          )}
 
           {/* Email — shared by both Try It Free and Sign In */}
           <div className="mb-4">

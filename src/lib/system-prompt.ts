@@ -18,6 +18,12 @@ Return your response strictly as the following JSON structure. Do not include ma
 
 {
   "title": "The course title (used as H1)",
+  "changes": [
+    "Added semantic heading hierarchy (H1 \u2192 H2 \u2192 H3) across 6 sections",
+    "Inserted missing Accessibility and Accommodations section",
+    "Reformatted 2 raw URLs into descriptive hyperlinks",
+    "Converted unstructured list into a proper bulleted list"
+  ],
   "sections": [
     {
       "heading": "Section heading text",
@@ -54,6 +60,7 @@ Content block rules:
 - "bullet_list" is for non-sequential items.
 - "numbered_list" is for sequential steps or procedures.
 - "table" has a "headers" array and a "rows" array of arrays.
+- "changes" is a top-level array of 3–6 plain-English strings summarizing specific accessibility improvements made. Be specific (e.g., "Added H2 headings to 5 sections", "Reformatted 3 raw URLs into descriptive hyperlinks"), not generic. Always include this field.
 - Preserve all original information; do not remove content.
 - Use plain, clear language where possible while preserving academic accuracy.
 - Return ONLY valid JSON.`;
