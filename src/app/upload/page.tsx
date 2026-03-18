@@ -99,7 +99,8 @@ export default function UploadPage() {
       }
 
       if (rawText.includes("__ERROR__")) {
-        throw new Error("Server processing failed. Please try again.");
+        const errDetail = rawText.split("__ERROR__:")[1]?.trim() || "Unknown error";
+        throw new Error(`Server error: ${errDetail}`);
       }
 
       // Step 3: Parse JSON and generate DOCX in the browser
