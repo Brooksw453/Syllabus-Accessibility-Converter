@@ -19,6 +19,8 @@ export async function POST(request: NextRequest) {
 
   const isSecure = process.env.NODE_ENV === "production";
 
+  const clearOptions = { secure: isSecure, sameSite: "strict" as const, path: "/", maxAge: 0 };
+
   // Pilot access code — 20 conversions, 7-day expiry
   if (pilotCode && password === pilotCode) {
     const response = NextResponse.json({ success: true, mode: "pilot" });
@@ -26,6 +28,9 @@ export async function POST(request: NextRequest) {
     response.cookies.set("pilot-auth", String(PILOT_CREDITS), { ...baseOptions, httpOnly: true });
     // Non-httpOnly so the upload page can read it for display
     response.cookies.set("pilot-credits", String(PILOT_CREDITS), { ...baseOptions, httpOnly: false });
+    // Clear any existing regular / demo auth so there's no overlap
+    response.cookies.set(getAuthCookieName(), "", { ...clearOptions, httpOnly: true });
+    response.cookies.set("demo-auth", "", { ...clearOptions, httpOnly: true });
     if (email) {
       response.cookies.set("syllabus-user-email", email.trim().toLowerCase(), { ...baseOptions, httpOnly: true });
     }
@@ -47,6 +52,10 @@ export async function POST(request: NextRequest) {
     maxAge: 60 * 60 * 8, // 8 hours
   };
   response.cookies.set(getAuthCookieName(), getAuthTokenValue(), cookieOptions);
+  // Clear any existing pilot auth so there's no overlap
+  response.cookies.set("pilot-auth", "", { ...clearOptions, httpOnly: true });
+  response.cookies.set("pilot-credits", "", { ...clearOptions, httpOnly: false });
+  response.cookies.set("demo-auth", "", { ...clearOptions, httpOnly: true });
   if (email) {
     response.cookies.set("syllabus-user-email", email.trim().toLowerCase(), cookieOptions);
   }
