@@ -74,7 +74,14 @@ function LoginPageInner() {
   const ref = searchParams.get("ref");
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-4">
+    <>
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:bg-surface-card focus:text-primary focus:border focus:border-primary focus:px-3 focus:py-1.5 focus:rounded-lg focus:text-sm focus:font-medium"
+      >
+        Skip to main content
+      </a>
+    <main id="main-content" className="min-h-screen flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* A11Y scan bar header */}
         <div className="scan-bar bg-surface-elevated border border-primary/30 rounded-t-xl px-6 py-3 flex items-center justify-between mb-0">
@@ -104,39 +111,40 @@ function LoginPageInner() {
             </div>
           )}
 
-          {/* Email — shared by both Try It Free and Sign In */}
-          <div className="mb-4">
-            <label
-              htmlFor="email"
-              className="block text-xs font-medium text-muted mb-1 tracking-wide uppercase"
-            >
-              Email Address
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoFocus
-              className="w-full px-4 py-2.5 bg-surface border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary placeholder-muted/50 text-sm"
-              placeholder="your@email.com"
-            />
-          </div>
+          {/* Email + Try It Free — wrapped in form so Enter key works */}
+          <form onSubmit={(e) => { e.preventDefault(); handleTryFree(); }} className="mb-4">
+            <div className="mb-3">
+              <label
+                htmlFor="email"
+                className="block text-xs font-medium text-muted mb-1 tracking-wide uppercase"
+              >
+                Email Address
+              </label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoFocus
+                className="w-full px-4 py-2.5 bg-surface border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary placeholder-muted/50 text-sm"
+                placeholder="your@email.com"
+              />
+            </div>
 
-          {/* Try It Free button */}
-          <button
-            type="button"
-            onClick={handleTryFree}
-            disabled={demoLoading || !emailValid}
-            className="w-full bg-primary/10 border-2 border-primary text-primary hover:bg-primary/20 font-semibold py-3 px-4 rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed tracking-wide text-sm mb-4 glow-border"
-          >
-            {demoLoading ? "Starting trial..." : "✦ Try It Free — 1 Free Conversion"}
-          </button>
-          {!emailValid && (
-            <p className="text-xs text-muted/60 text-center -mt-3 mb-4">
-              Enter your email above to try it free
-            </p>
-          )}
+            <button
+              type="submit"
+              disabled={demoLoading || !emailValid}
+              className="w-full bg-primary/10 border-2 border-primary text-primary hover:bg-primary/20 font-semibold py-3 px-4 rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed tracking-wide text-sm glow-border"
+            >
+              <span aria-hidden="true">✦ </span>
+              {demoLoading ? "Starting trial..." : "Try It Free — 1 Free Conversion"}
+            </button>
+            {!emailValid && (
+              <p className="text-xs text-muted/60 text-center mt-2">
+                Enter your email above to try it free
+              </p>
+            )}
+          </form>
 
           <div className="flex items-center gap-3 mb-4">
             <div className="flex-1 h-px bg-border" />
@@ -197,13 +205,15 @@ function LoginPageInner() {
             <button
               type="button"
               onClick={() => setLearnOpen(!learnOpen)}
+              aria-expanded={learnOpen}
+              aria-controls="learn-more-panel"
               className="w-full flex items-center justify-between px-4 py-3 text-sm text-muted hover:text-primary transition-colors"
             >
               <span className="font-medium tracking-wide">Learn More</span>
-              <span className="text-xs">{learnOpen ? "▲" : "▼"}</span>
+              <span className="text-xs" aria-hidden="true">{learnOpen ? "▲" : "▼"}</span>
             </button>
             {learnOpen && (
-              <div className="px-4 pb-4 border-t border-border text-sm text-muted space-y-4">
+              <div id="learn-more-panel" className="px-4 pb-4 border-t border-border text-sm text-muted space-y-4">
                 <div className="pt-3">
                   <div className="flex gap-2 items-start bg-primary/5 border border-primary/20 rounded-lg px-3 py-2 mb-3">
                     <span className="text-primary mt-0.5">🔒</span>
@@ -239,7 +249,7 @@ function LoginPageInner() {
                       "Preserves all original content — restructures without removing",
                     ].map((cap) => (
                       <li key={cap} className="flex gap-2">
-                        <span className="text-primary mt-0.5">✓</span>
+                        <span className="text-primary mt-0.5" aria-hidden="true">✓</span>
                         <span>{cap}</span>
                       </li>
                     ))}
@@ -264,6 +274,7 @@ function LoginPageInner() {
         </p>
       </div>
     </main>
+    </>
   );
 }
 

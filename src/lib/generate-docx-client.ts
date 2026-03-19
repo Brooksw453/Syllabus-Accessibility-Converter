@@ -35,6 +35,7 @@ interface Section {
 
 export interface AccessibleDocument {
   title: string;
+  institution?: string | null;
   sections: Section[];
   changes?: string[];
 }

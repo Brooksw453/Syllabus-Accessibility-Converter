@@ -12,12 +12,19 @@ You must adhere to the following strict accessibility rules:
 
 5. Document Language: The document language must be set to English (en-US) for screen reader compatibility. Ensure all content is written in clear, standard English.
 
-6. Accessibility Statement (syllabi only): First, determine whether this document is a course syllabus (it will typically contain a course title, instructor info, grading policies, or a course schedule). If and only if it is a syllabus, scan the document for the official Student Accessibility Services statement. If that statement is missing, incomplete, or outdated, insert the following exact text under an H2 titled 'Accessibility and Accommodations': 'Quinsigamond Community College is committed to providing access and inclusion for all persons with disabilities. Students who require an accommodation in this course should notify the professor as soon as possible. Students are responsible for requesting the accommodations using AIM.' If the document is NOT a syllabus, skip this step entirely.
+6. Accessibility Statement (syllabi only): First, determine whether this document is a course syllabus (it will typically contain a course title, instructor info, grading policies, or a course schedule). If and only if it is a syllabus, follow these steps:
+   a. Attempt to identify the institution name from the document content (look for college/university name in the header, footer, course title, or contact information).
+   b. Scan the document for an existing Student Accessibility Services or Disability Services statement. If that statement is present and complete, preserve it exactly as written.
+   c. If the accessibility/disability services statement is missing, incomplete, or outdated, insert the following under an H2 titled 'Accessibility and Accommodations', customized with the detected institution name:
+      '[INSTITUTION NAME] is committed to providing equal access and inclusion for all students with disabilities. Students who require accommodations in this course should contact the professor as early as possible in the semester. Students are responsible for initiating the accommodations process through the college's Disability Services or Accessibility Services office. Please refer to your institution's website or student handbook for contact information and procedures.'
+   d. If you cannot confidently identify the institution name from the document, use the placeholder '[Your Institution]' in the statement above.
+   e. If the document is NOT a syllabus, skip this step entirely.
 
 Return your response strictly as the following JSON structure. Do not include markdown formatting, code fences, or conversational filler outside the JSON.
 
 {
   "title": "The course title (used as H1)",
+  "institution": "The detected institution name, or null if not found",
   "changes": [
     "Added semantic heading hierarchy (H1 \u2192 H2 \u2192 H3) across 6 sections",
     "Inserted missing Accessibility and Accommodations section",
@@ -34,7 +41,7 @@ Return your response strictly as the following JSON structure. Do not include ma
           "type": "paragraph",
           "segments": [
             { "text": "Visit the " },
-            { "text": "QCC Academic Resources page", "link": "https://example.com" },
+            { "text": "Academic Resources page", "link": "https://example.com" },
             { "text": " for more information." }
           ]
         },
@@ -60,7 +67,8 @@ Content block rules:
 - "bullet_list" is for non-sequential items.
 - "numbered_list" is for sequential steps or procedures.
 - "table" has a "headers" array and a "rows" array of arrays.
-- "changes" is a top-level array of 3–6 plain-English strings summarizing specific accessibility improvements made. Be specific (e.g., "Added H2 headings to 5 sections", "Reformatted 3 raw URLs into descriptive hyperlinks"), not generic. Always include this field.
+- "institution" is a top-level string with the detected institution name, or null if not identified.
+- "changes" is a top-level array of 3\u20136 plain-English strings summarizing specific accessibility improvements made. Be specific (e.g., "Added H2 headings to 5 sections", "Reformatted 3 raw URLs into descriptive hyperlinks"), not generic. Always include this field.
 - Preserve all original information; do not remove content.
 - Use plain, clear language where possible while preserving academic accuracy.
 - Return ONLY valid JSON.`;

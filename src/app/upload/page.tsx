@@ -52,10 +52,11 @@ function UploadPageInner() {
   const [batchTotal, setBatchTotal] = useState(0);
   const [batchIndex, setBatchIndex] = useState(0);
   const [batchResults, setBatchResults] = useState<{ name: string; ok: boolean }[]>([]);
+  const [institution, setInstitution] = useState<string | null>(null);
   const searchParams = useSearchParams();
   const isDemo = searchParams.get("demo") === "1";
 
-  async function processOneFile(file: File): Promise<{ blob: Blob; downloadName: string; changes: string[] }> {
+  async function processOneFile(file: File): Promise<{ blob: Blob; downloadName: string; changes: string[]; institution: string | null }> {
     // Step 1: Extract text in the BROWSER
     const arrayBuffer = await file.arrayBuffer();
     let extractedText: string;
@@ -157,7 +158,12 @@ function UploadPageInner() {
     const blob = await generateAccessibleDocxBlob(documentData);
     const baseName = file.name.replace(/\.[^/.]+$/, "");
     const safeName = baseName.replace(/\s+/g, "-");
-    return { blob, downloadName: `${safeName}(accessible).docx`, changes: documentData.changes ?? [] };
+    return {
+      blob,
+      downloadName: `${safeName}(accessible).docx`,
+      changes: documentData.changes ?? [],
+      institution: documentData.institution ?? null,
+    };
   }
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
@@ -208,9 +214,10 @@ function UploadPageInner() {
 
       try {
         setStatus("processing");
-        const { blob, downloadName, changes: fileChanges } = await processOneFile(file);
+        const { blob, downloadName, changes: fileChanges, institution: detectedInstitution } = await processOneFile(file);
         setStatus("generating");
         setChanges(fileChanges);
+        setInstitution(detectedInstitution);
         setPendingBlob(blob);
         setPendingDownloadName(downloadName);
         setStatus("preview");
@@ -270,7 +277,14 @@ function UploadPageInner() {
           : "Processing Accessibility Updates...";
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-4">
+    <>
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:bg-surface-card focus:text-primary focus:border focus:border-primary focus:px-3 focus:py-1.5 focus:rounded-lg focus:text-sm focus:font-medium"
+      >
+        Skip to main content
+      </a>
+    <main id="main-content" className="min-h-screen flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-2xl">
         {/* A11y scan bar header */}
         <div className="scan-bar bg-surface-elevated border border-primary/30 rounded-t-xl px-6 py-3 flex items-center justify-between">
@@ -357,8 +371,13 @@ function UploadPageInner() {
           {status === "preview" && (
             <div className="mt-2 bg-surface-elevated border border-primary/30 rounded-xl p-5">
               <p className="font-semibold text-primary glow-text mb-3 text-center">
-                ✦ Accessibility improvements made
+                <span aria-hidden="true">✦ </span>Accessibility improvements made
               </p>
+              {institution && (
+                <p className="text-xs text-center text-muted mb-3">
+                  Institution detected: <strong className="text-primary">{institution}</strong>
+                </p>
+              )}
               <ul className="space-y-1.5 mb-5">
                 {changes.length > 0 ? changes.map((change, i) => (
                   <li key={i} className="flex gap-2 text-sm">
@@ -444,13 +463,15 @@ function UploadPageInner() {
             <button
               type="button"
               onClick={() => setLearnOpen(!learnOpen)}
+              aria-expanded={learnOpen}
+              aria-controls="about-panel"
               className="w-full flex items-center justify-between px-4 py-3 text-sm text-muted hover:text-primary transition-colors"
             >
               <span className="font-medium tracking-wide">About This Tool</span>
-              <span className="text-xs">{learnOpen ? "▲" : "▼"}</span>
+              <span className="text-xs" aria-hidden="true">{learnOpen ? "▲" : "▼"}</span>
             </button>
             {learnOpen && (
-              <div className="px-4 pb-4 border-t border-border text-sm text-muted space-y-4">
+              <div id="about-panel" className="px-4 pb-4 border-t border-border text-sm text-muted space-y-4">
                 <div className="pt-3">
                   <div className="flex gap-2 items-start bg-primary/5 border border-primary/20 rounded-lg px-3 py-2 mb-3">
                     <span className="text-primary mt-0.5">🔒</span>
@@ -486,7 +507,7 @@ function UploadPageInner() {
                       "Preserves all original content — restructures without removing",
                     ].map((cap) => (
                       <li key={cap} className="flex gap-2">
-                        <span className="text-primary mt-0.5">✓</span>
+                        <span className="text-primary mt-0.5" aria-hidden="true">✓</span>
                         <span>{cap}</span>
                       </li>
                     ))}
@@ -518,6 +539,7 @@ function UploadPageInner() {
         </p>
       </div>
     </main>
+    </>
   );
 }
 
