@@ -288,12 +288,20 @@ function UploadPageInner() {
       <div className="w-full max-w-2xl">
         {/* A11y scan bar header */}
         <div className="scan-bar bg-surface-elevated border border-primary/30 rounded-t-xl px-6 py-3 flex items-center justify-between">
-          <span className="text-xs font-mono text-primary/60 tracking-widest uppercase">
+          <span className="text-xs font-mono text-primary/80 tracking-widest uppercase">
             accessibility.esdesigns.org
           </span>
           <span className="text-primary font-bold tracking-widest text-sm uppercase glow-text">
             Syllabus A11Y
           </span>
+        </div>
+
+        {/* Screen reader live region — announces status changes */}
+        <div aria-live="polite" aria-atomic="true" className="sr-only">
+          {isProcessing ? statusMessage : ""}
+          {status === "preview" ? "Conversion complete. Review the changes below and click Download." : ""}
+          {status === "done" ? "Document downloaded successfully." : ""}
+          {status === "error" ? `Error: ${error}` : ""}
         </div>
 
         {/* Main card */}
@@ -312,13 +320,14 @@ function UploadPageInner() {
           {/* Demo mode badge */}
           {isDemo && !trialDone && (
             <div className="mb-4 text-center text-xs bg-primary/10 border border-primary/30 text-primary px-3 py-2 rounded-lg">
-              ✦ Free Trial — 1 conversion included
+              <span aria-hidden="true">✦ </span>Free Trial — 1 conversion included
             </div>
           )}
 
           {!isProcessing && status !== "preview" && !trialDone && (
             <div
               {...getRootProps()}
+              aria-label={`Upload zone. ${isDemo ? "Drop or click to select a .docx or .pdf file." : "Drop or click to select up to 5 .docx or .pdf files."}`}
               className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all duration-200 ${
                 isDragActive
                   ? "border-accent bg-primary/5 glow-border-active"
@@ -355,7 +364,11 @@ function UploadPageInner() {
 
           {isProcessing && (
             <div className="flex flex-col items-center gap-4 py-12">
-              <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+              <div
+                className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"
+                role="status"
+                aria-label="Processing"
+              />
               <div className="text-center">
                 <p className="font-medium text-primary glow-text">
                   {statusMessage}
@@ -526,13 +539,13 @@ function UploadPageInner() {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-xs text-muted/50 mt-4">
+        <p className="text-center text-xs text-muted/80 mt-4">
           A tool by{" "}
           <a
             href="https://esdesigns.org"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-primary/60 hover:text-primary transition-colors"
+            className="text-primary/80 hover:text-primary transition-colors"
           >
             esdesigns.org
           </a>

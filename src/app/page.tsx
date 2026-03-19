@@ -85,7 +85,7 @@ function LoginPageInner() {
       <div className="w-full max-w-md">
         {/* A11Y scan bar header */}
         <div className="scan-bar bg-surface-elevated border border-primary/30 rounded-t-xl px-6 py-3 flex items-center justify-between mb-0">
-          <span className="text-xs font-mono text-primary/60 tracking-widest uppercase">
+          <span className="text-xs font-mono text-primary/80 tracking-widest uppercase">
             accessibility.esdesigns.org
           </span>
           <span className="text-primary font-bold tracking-widest text-sm uppercase glow-text">
@@ -140,7 +140,7 @@ function LoginPageInner() {
               {demoLoading ? "Starting trial..." : "Try It Free — 1 Free Conversion"}
             </button>
             {!emailValid && (
-              <p className="text-xs text-muted/60 text-center mt-2">
+              <p className="text-xs text-muted text-center mt-2">
                 Enter your email above to try it free
               </p>
             )}
@@ -190,7 +190,7 @@ function LoginPageInner() {
           </form>
 
           {/* Institution access contact */}
-          <div className="mt-4 text-center text-xs text-muted/70 bg-surface-elevated border border-border rounded-lg px-4 py-3">
+          <div className="mt-4 text-center text-xs text-muted bg-surface-elevated border border-border rounded-lg px-4 py-3">
             Want access for your school or institution?{" "}
             <a
               href="mailto:bwinchell@esdesigns.org"
@@ -261,13 +261,13 @@ function LoginPageInner() {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-xs text-muted/50 mt-4">
+        <p className="text-center text-xs text-muted/80 mt-4">
           A tool by{" "}
           <a
             href="https://esdesigns.org"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-primary/60 hover:text-primary transition-colors"
+            className="text-primary/80 hover:text-primary transition-colors"
           >
             esdesigns.org
           </a>
