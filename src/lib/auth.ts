@@ -7,8 +7,10 @@ const DEMO_COOKIE_NAME = "demo-auth";
 export async function isAuthenticated(): Promise<boolean> {
   const cookieStore = await cookies();
   if (cookieStore.get(AUTH_COOKIE_NAME)?.value === AUTH_TOKEN_VALUE) return true;
-  // Demo users with an available (unused) trial are also authenticated
-  return cookieStore.get(DEMO_COOKIE_NAME)?.value === "available";
+  if (cookieStore.get(DEMO_COOKIE_NAME)?.value === "available") return true;
+  // Pilot users have credits remaining
+  const pilotCredits = parseInt(cookieStore.get("pilot-auth")?.value ?? "0", 10);
+  return !isNaN(pilotCredits) && pilotCredits > 0;
 }
 
 export function getAuthCookieName(): string {

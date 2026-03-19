@@ -29,8 +29,18 @@ export async function POST(request: NextRequest) {
   // Log usage to Vercel Function Logs (visible in Vercel dashboard → Logs tab)
   const userEmail = request.cookies.get("syllabus-user-email")?.value ?? "unknown";
   const isDemo = request.cookies.get("demo-auth")?.value === "available";
+  const pilotCredits = parseInt(request.cookies.get("pilot-auth")?.value ?? "0", 10);
+  const isPilot = !isNaN(pilotCredits) && pilotCredits > 0;
   const timestamp = new Date().toISOString();
-  console.log(`[USAGE] time=${timestamp} | email=${userEmail} | file=${fileName ?? "unknown"} | demo=${isDemo}`);
+  console.log(`[USAGE] time=${timestamp} | email=${userEmail} | file=${fileName ?? "unknown"} | demo=${isDemo} | pilot=${isPilot} | pilot_credits_before=${isPilot ? pilotCredits : "n/a"}`);
+
+  // Hard-stop if pilot user has exhausted their credits
+  if (isPilot && pilotCredits <= 0) {
+    return NextResponse.json(
+      { error: "Your pilot access has been used up. Contact bwinchell@esdesigns.org for full institutional access." },
+      { status: 402 }
+    );
+  }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -128,14 +138,26 @@ export async function POST(request: NextRequest) {
   });
 
   const isSecure = process.env.NODE_ENV === "production";
-  const responseHeaders: Record<string, string> = {
+  const secure = isSecure ? "Secure; " : "";
+  const responseHeaders = new Headers({
     "Content-Type": "text/plain; charset=utf-8",
     "Cache-Control": "no-cache, no-transform",
-  };
+  });
+
   // Mark demo trial as used so further uploads are blocked
   if (isDemo) {
-    responseHeaders["Set-Cookie"] =
-      `demo-auth=used; HttpOnly; ${isSecure ? "Secure; " : ""}SameSite=Strict; Path=/; Max-Age=7200`;
+    responseHeaders.append("Set-Cookie",
+      `demo-auth=used; HttpOnly; ${secure}SameSite=Strict; Path=/; Max-Age=7200`);
+  }
+
+  // Decrement pilot credits (both httpOnly auth cookie and display cookie)
+  if (isPilot) {
+    const remaining = Math.max(0, pilotCredits - 1);
+    const pilotMaxAge = 60 * 60 * 24 * 7;
+    responseHeaders.append("Set-Cookie",
+      `pilot-auth=${remaining}; HttpOnly; ${secure}SameSite=Strict; Path=/; Max-Age=${pilotMaxAge}`);
+    responseHeaders.append("Set-Cookie",
+      `pilot-credits=${remaining}; ${secure}SameSite=Strict; Path=/; Max-Age=${pilotMaxAge}`);
   }
 
   return new Response(readable, { headers: responseHeaders });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, Suspense } from "react";
+import { useCallback, useState, Suspense, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useDropzone } from "react-dropzone";
 import mammoth from "mammoth";
@@ -53,6 +53,26 @@ function UploadPageInner() {
   const [batchIndex, setBatchIndex] = useState(0);
   const [batchResults, setBatchResults] = useState<{ name: string; ok: boolean }[]>([]);
   const [institution, setInstitution] = useState<string | null>(null);
+  const [pilotCredits, setPilotCredits] = useState<number>(0);
+  const [isPilot, setIsPilot] = useState(false);
+  const previewRef = useRef<HTMLDivElement>(null);
+
+  // Read pilot-credits display cookie on mount (non-httpOnly, JS-readable)
+  // Cookie presence (even at 0) means this is a pilot session
+  useEffect(() => {
+    const match = document.cookie.match(/(?:^|;\s*)pilot-credits=(\d+)/);
+    if (match !== null) {
+      setIsPilot(true);
+      setPilotCredits(parseInt(match[1], 10));
+    }
+  }, []);
+
+  // Move focus to preview panel when it appears
+  useEffect(() => {
+    if (status === "preview" && previewRef.current) {
+      previewRef.current.focus();
+    }
+  }, [status]);
   const searchParams = useSearchParams();
   const isDemo = searchParams.get("demo") === "1";
 
@@ -198,6 +218,7 @@ function UploadPageInner() {
           a.click();
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
+          refreshPilotCredits();
           results.push({ name: file.name, ok: true });
         } catch {
           results.push({ name: file.name, ok: false });
@@ -240,11 +261,20 @@ function UploadPageInner() {
     URL.revokeObjectURL(url);
   }
 
+  function refreshPilotCredits() {
+    const match = document.cookie.match(/(?:^|;\s*)pilot-credits=(\d+)/);
+    if (match !== null) {
+      setIsPilot(true);
+      setPilotCredits(parseInt(match[1], 10));
+    }
+  }
+
   function handleDownload() {
     if (pendingBlob && pendingDownloadName) {
       triggerDownload(pendingBlob, pendingDownloadName);
       setPendingBlob(null);
       setPendingDownloadName("");
+      refreshPilotCredits();
       setStatus("done");
     }
   }
@@ -266,6 +296,17 @@ function UploadPageInner() {
     status === "extracting" ||
     status === "processing" ||
     status === "generating";
+
+  // Update page title so screen reader users know when conversion completes
+  // (placed after isProcessing is defined)
+  useEffect(() => {
+    if (status === "preview") document.title = "Conversion Complete — Syllabus A11Y";
+    else if (status === "done") document.title = "Downloaded — Syllabus A11Y";
+    else if (status === "error") document.title = "Error — Syllabus A11Y";
+    else if (isProcessing) document.title = "Processing… — Syllabus A11Y";
+    else document.title = "Syllabus A11Y";
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
 
   const statusMessage =
     batchTotal > 1
@@ -324,6 +365,16 @@ function UploadPageInner() {
             </div>
           )}
 
+          {isPilot && (
+            <div className="mb-4 text-center text-xs bg-primary/10 border border-primary/30 text-primary px-3 py-2 rounded-lg">
+              <span aria-hidden="true">✦ </span>Pilot Access —{" "}
+              {pilotCredits > 0
+                ? <><strong>{pilotCredits}</strong> conversion{pilotCredits !== 1 ? "s" : ""} remaining</>
+                : <span className="text-red-400">No conversions remaining — <a href="mailto:bwinchell@esdesigns.org" className="underline">contact us for full access</a></span>
+              }
+            </div>
+          )}
+
           {!isProcessing && status !== "preview" && !trialDone && (
             <div
               {...getRootProps()}
@@ -358,6 +409,9 @@ function UploadPageInner() {
                 <p className="text-xs text-muted">
                   Supported formats: .docx, .pdf{!isDemo && " — up to 5 files"}
                 </p>
+                <p className="text-xs text-muted/80 mt-1">
+                  Keyboard users: press <kbd className="px-1 py-0.5 bg-surface border border-border rounded text-xs font-mono">Enter</kbd> or <kbd className="px-1 py-0.5 bg-surface border border-border rounded text-xs font-mono">Space</kbd> to open file selector
+                </p>
               </div>
             </div>
           )}
@@ -382,7 +436,11 @@ function UploadPageInner() {
           )}
 
           {status === "preview" && (
-            <div className="mt-2 bg-surface-elevated border border-primary/30 rounded-xl p-5">
+            <div
+              ref={previewRef}
+              tabIndex={-1}
+              className="mt-2 bg-surface-elevated border border-primary/30 rounded-xl p-5 focus:outline-none focus:ring-2 focus:ring-primary"
+            >
               <p className="font-semibold text-primary glow-text mb-3 text-center">
                 <span aria-hidden="true">✦ </span>Accessibility improvements made
               </p>
