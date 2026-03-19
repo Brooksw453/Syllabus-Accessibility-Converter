@@ -33,7 +33,7 @@ function ShareLink() {
           setCopied(true);
           setTimeout(() => setCopied(false), 2000);
         }}
-        className="text-xs text-primary border border-primary/30 px-2 py-1 rounded hover:bg-primary/10 transition-colors whitespace-nowrap"
+        className="text-xs text-primary border border-primary/30 px-2 py-1 rounded hover:bg-primary/10 transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
         {copied ? "Copied!" : "Copy"}
       </button>
@@ -325,7 +325,7 @@ function UploadPageInner() {
       >
         Skip to main content
       </a>
-    <main id="main-content" className="min-h-screen flex flex-col items-center justify-center p-4">
+    <main id="main-content" tabIndex={-1} className="min-h-screen flex flex-col items-center justify-center p-4 outline-none">
       <div className="w-full max-w-2xl">
         {/* A11y scan bar header */}
         <div className="scan-bar bg-surface-elevated border border-primary/30 rounded-t-xl px-6 py-3 flex items-center justify-between">
@@ -452,7 +452,7 @@ function UploadPageInner() {
               <ul className="space-y-1.5 mb-5">
                 {changes.length > 0 ? changes.map((change, i) => (
                   <li key={i} className="flex gap-2 text-sm">
-                    <span className="text-primary mt-0.5">✓</span>
+                    <span className="text-primary mt-0.5" aria-hidden="true">✓</span>
                     <span className="text-text/80">{change}</span>
                   </li>
                 )) : (
@@ -462,7 +462,7 @@ function UploadPageInner() {
               <button
                 type="button"
                 onClick={handleDownload}
-                className="w-full bg-primary/10 border-2 border-primary text-primary hover:bg-primary/20 font-semibold py-3 px-4 rounded-lg transition-all duration-200 tracking-wide text-sm glow-border"
+                className="w-full bg-primary/10 border-2 border-primary text-primary hover:bg-primary/20 font-semibold py-3 px-4 rounded-lg transition-all duration-200 tracking-wide text-sm glow-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
               >
                 Download Accessible Document
               </button>
@@ -479,7 +479,7 @@ function UploadPageInner() {
                   {batchResults.some(r => !r.ok) && (
                     <ul className="text-sm mt-2 text-red-400 text-left space-y-0.5">
                       {batchResults.filter(r => !r.ok).map(r => (
-                        <li key={r.name}>✗ {r.name} — failed</li>
+                        <li key={r.name}><span aria-hidden="true">✗ </span>{r.name} — failed</li>
                       ))}
                     </ul>
                   )}
@@ -536,7 +536,7 @@ function UploadPageInner() {
               onClick={() => setLearnOpen(!learnOpen)}
               aria-expanded={learnOpen}
               aria-controls="about-panel"
-              className="w-full flex items-center justify-between px-4 py-3 text-sm text-muted hover:text-primary transition-colors"
+              className="w-full flex items-center justify-between px-4 py-3 text-sm text-muted hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
             >
               <span className="font-medium tracking-wide">About This Tool</span>
               <span className="text-xs" aria-hidden="true">{learnOpen ? "▲" : "▼"}</span>
@@ -603,6 +603,7 @@ function UploadPageInner() {
             href="https://esdesigns.org"
             target="_blank"
             rel="noopener noreferrer"
+            aria-label="esdesigns.org (opens in new tab)"
             className="text-primary/80 hover:text-primary transition-colors"
           >
             esdesigns.org

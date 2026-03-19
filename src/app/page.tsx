@@ -81,7 +81,7 @@ function LoginPageInner() {
       >
         Skip to main content
       </a>
-    <main id="main-content" className="min-h-screen flex flex-col items-center justify-center p-4">
+    <main id="main-content" tabIndex={-1} className="min-h-screen flex flex-col items-center justify-center p-4 outline-none">
       <div className="w-full max-w-md">
         {/* A11Y scan bar header */}
         <div className="scan-bar bg-surface-elevated border border-primary/30 rounded-t-xl px-6 py-3 flex items-center justify-between mb-0">
@@ -126,6 +126,7 @@ function LoginPageInner() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoFocus
+                autoComplete="email"
                 className="w-full px-4 py-2.5 bg-surface border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary placeholder-muted/50 text-sm"
                 placeholder="your@email.com"
               />
@@ -134,7 +135,7 @@ function LoginPageInner() {
             <button
               type="submit"
               disabled={demoLoading || !emailValid}
-              className="w-full bg-primary/10 border-2 border-primary text-primary hover:bg-primary/20 font-semibold py-3 px-4 rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed tracking-wide text-sm glow-border"
+              className="w-full bg-primary/10 border-2 border-primary text-primary hover:bg-primary/20 font-semibold py-3 px-4 rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed tracking-wide text-sm glow-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
             >
               <span aria-hidden="true">✦ </span>
               {demoLoading ? "Starting trial..." : "Try It Free — 1 Free Conversion"}
@@ -165,6 +166,7 @@ function LoginPageInner() {
                 type="password"
                 value={accessCode}
                 onChange={(e) => setAccessCode(e.target.value)}
+                autoComplete="current-password"
                 required
                 className="w-full px-4 py-2.5 bg-surface border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary placeholder-muted/50 text-sm"
                 placeholder="Enter access code"
@@ -183,7 +185,7 @@ function LoginPageInner() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full border border-border text-muted hover:border-primary hover:text-primary font-medium py-2.5 px-4 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed tracking-wide text-sm"
+              className="w-full border border-border text-muted hover:border-primary hover:text-primary font-medium py-2.5 px-4 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed tracking-wide text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
             >
               {loading ? "Signing in..." : "Sign In"}
             </button>
@@ -207,7 +209,7 @@ function LoginPageInner() {
               onClick={() => setLearnOpen(!learnOpen)}
               aria-expanded={learnOpen}
               aria-controls="learn-more-panel"
-              className="w-full flex items-center justify-between px-4 py-3 text-sm text-muted hover:text-primary transition-colors"
+              className="w-full flex items-center justify-between px-4 py-3 text-sm text-muted hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
             >
               <span className="font-medium tracking-wide">Learn More</span>
               <span className="text-xs" aria-hidden="true">{learnOpen ? "▲" : "▼"}</span>
@@ -267,6 +269,7 @@ function LoginPageInner() {
             href="https://esdesigns.org"
             target="_blank"
             rel="noopener noreferrer"
+            aria-label="esdesigns.org (opens in new tab)"
             className="text-primary/80 hover:text-primary transition-colors"
           >
             esdesigns.org
