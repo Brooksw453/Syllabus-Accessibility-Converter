@@ -3,9 +3,9 @@ import Script from "next/script";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Syllabus Accessibility Converter",
+  title: "Document Ally",
   description:
-    "Make your course syllabi Title II ADA compliant with AI-powered accessibility conversion.",
+    "Make your documents ADA compliant with AI-powered accessibility conversion.",
 };
 
 const GA_ID = "G-1J3K52PMLD";

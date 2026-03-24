@@ -1,14 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAuthenticated } from "@/lib/auth";
+import { isAuthenticated, getEmailCookieName } from "@/lib/auth";
+import { checkRateLimit, recordUsage } from "@/lib/rate-limit";
 import { SYSTEM_PROMPT } from "@/lib/system-prompt";
 
-// Edge Runtime for streaming support
-export const runtime = "edge";
-export const maxDuration = 60; // seconds — Vercel Pro allows up to 300
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   if (!(await isAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const userEmail =
+    request.cookies.get(getEmailCookieName())?.value ?? "unknown";
+
+  // Rate limit: 5 documents per hour per email
+  const { allowed, remaining, resetInSeconds } = checkRateLimit(userEmail);
+  if (!allowed) {
+    return NextResponse.json(
+      {
+        error: `Rate limit reached. You can convert 5 documents per hour. Try again in ${Math.ceil(resetInSeconds / 60)} minutes.`,
+        remaining,
+        resetInSeconds,
+      },
+      { status: 429 }
+    );
   }
 
   let body: { text: string; fileName?: string };
@@ -26,21 +41,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Log usage to Vercel Function Logs (visible in Vercel dashboard → Logs tab)
-  const userEmail = request.cookies.get("syllabus-user-email")?.value ?? "unknown";
-  const isDemo = request.cookies.get("demo-auth")?.value === "available";
-  const pilotCredits = parseInt(request.cookies.get("pilot-auth")?.value ?? "0", 10);
-  const isPilot = !isNaN(pilotCredits) && pilotCredits > 0;
-  const timestamp = new Date().toISOString();
-  console.log(`[USAGE] time=${timestamp} | email=${userEmail} | file=${fileName ?? "unknown"} | demo=${isDemo} | pilot=${isPilot} | pilot_credits_before=${isPilot ? pilotCredits : "n/a"}`);
-
-  // Hard-stop if pilot user has exhausted their credits
-  if (isPilot && pilotCredits <= 0) {
-    return NextResponse.json(
-      { error: "Your pilot access has been used up. Contact bwinchell@esdesigns.org for full institutional access." },
-      { status: 402 }
-    );
-  }
+  console.log(
+    `[USAGE] time=${new Date().toISOString()} | email=${userEmail} | file=${fileName ?? "unknown"}`
+  );
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -50,8 +53,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Use raw fetch instead of the SDK — more reliable in Edge Runtime.
-  // The SDK's streaming can hang in Vercel Edge functions.
   let apiRes: Response;
   try {
     apiRes = await fetch("https://api.anthropic.com/v1/messages", {
@@ -69,7 +70,7 @@ export async function POST(request: NextRequest) {
         messages: [
           {
             role: "user",
-            content: `Here is the syllabus text to make ADA compliant:\n\n${text}`,
+            content: `Here is the document text to make ADA compliant:\n\n${text}`,
           },
         ],
       }),
@@ -92,7 +93,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: message }, { status: apiRes.status });
   }
 
-  // Pipe the SSE stream, extracting text deltas
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
 
@@ -128,6 +128,9 @@ export async function POST(request: NextRequest) {
             }
           }
         }
+
+        // Record usage only after successful completion
+        recordUsage(userEmail);
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Stream failed";
@@ -137,28 +140,10 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  const isSecure = process.env.NODE_ENV === "production";
-  const secure = isSecure ? "Secure; " : "";
-  const responseHeaders = new Headers({
-    "Content-Type": "text/plain; charset=utf-8",
-    "Cache-Control": "no-cache, no-transform",
+  return new Response(readable, {
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+    },
   });
-
-  // Mark demo trial as used so further uploads are blocked
-  if (isDemo) {
-    responseHeaders.append("Set-Cookie",
-      `demo-auth=used; HttpOnly; ${secure}SameSite=Strict; Path=/; Max-Age=7200`);
-  }
-
-  // Decrement pilot credits (both httpOnly auth cookie and display cookie)
-  if (isPilot) {
-    const remaining = Math.max(0, pilotCredits - 1);
-    const pilotMaxAge = 60 * 60 * 24 * 7;
-    responseHeaders.append("Set-Cookie",
-      `pilot-auth=${remaining}; HttpOnly; ${secure}SameSite=Strict; Path=/; Max-Age=${pilotMaxAge}`);
-    responseHeaders.append("Set-Cookie",
-      `pilot-credits=${remaining}; ${secure}SameSite=Strict; Path=/; Max-Age=${pilotMaxAge}`);
-  }
-
-  return new Response(readable, { headers: responseHeaders });
 }

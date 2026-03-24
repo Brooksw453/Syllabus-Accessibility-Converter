@@ -1,17 +1,17 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-primary: #22c55e;
-  --color-primary-dark: #16a34a;
-  --color-accent: #4ade80;
-  --color-accent-hover: #86efac;
-  --color-surface: #080e0a;
-  --color-surface-card: #0c1410;
-  --color-surface-elevated: #111d15;
-  --color-border: #1a2e20;
-  --color-border-glow: #22c55e40;
-  --color-muted: #8aaa94;
-  --color-text: #ddeee4;
+  --color-primary: #4F46E5;
+  --color-primary-dark: #4338CA;
+  --color-accent: #6366F1;
+  --color-accent-hover: #818CF8;
+  --color-surface: #FFFFFF;
+  --color-surface-card: #F9FAFB;
+  --color-surface-elevated: #F3F4F6;
+  --color-border: #E5E7EB;
+  --color-border-glow: transparent;
+  --color-muted: #6B7280;
+  --color-text: #111827;
   --color-orange: #ff8c00;
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
 }
@@ -20,6 +20,21 @@ body {
   background: var(--color-surface);
   color: var(--color-text);
   font-family: var(--font-sans);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-primary: #818CF8;
+    --color-primary-dark: #6366F1;
+    --color-accent: #A5B4FC;
+    --color-accent-hover: #C7D2FE;
+    --color-surface: #0F172A;
+    --color-surface-card: #1E293B;
+    --color-surface-elevated: #334155;
+    --color-border: #475569;
+    --color-muted: #94A3B8;
+    --color-text: #F1F5F9;
+  }
 }
 
 @keyframes spin {
@@ -32,47 +47,17 @@ body {
   animation: spin 1s linear infinite;
 }
 
-.glow-text {
-  text-shadow: 0 0 10px #22c55e80, 0 0 30px #22c55e40;
+.card-shadow {
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
 }
 
-.glow-border {
-  box-shadow: 0 0 15px #22c55e15, inset 0 0 15px #22c55e05;
-}
-
-.glow-border-active {
-  box-shadow: 0 0 20px #22c55e30, inset 0 0 20px #22c55e10;
-}
-
-/* Scan bar animation for the A11y header — vertical beam sweeps left to right */
-@keyframes scan {
-  0%   { transform: translateX(-100%); opacity: 0; }
-  10%  { opacity: 1; }
-  90%  { opacity: 1; }
-  100% { transform: translateX(600%); opacity: 0; }
-}
-
-.scan-bar {
-  position: relative;
-  overflow: hidden;
-}
-
-.scan-bar::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 15%;
-  background: linear-gradient(90deg, transparent, #22c55e60, #4ade80, #22c55e60, transparent);
-  animation: scan 3s ease-in-out infinite;
+@media (prefers-color-scheme: dark) {
+  .card-shadow {
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.2);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .scan-bar::after {
-    animation: none;
-    opacity: 0;
-  }
   .animate-spin {
     animation: none;
     border: 4px solid var(--color-primary);
