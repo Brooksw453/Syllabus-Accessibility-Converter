@@ -56,7 +56,7 @@ function memRecord(email: string, fileName: string): void {
 }
 
 function memGetLog(): { email: string; fileName: string; timestamp: string }[] {
-  return memLog.slice(0, 200);
+  return memLog.slice(0, 1000);
 }
 
 // ---------------------------------------------------------------------------
@@ -121,7 +121,7 @@ export async function getUsageLog(): Promise<
 
   if (!kv) return memGetLog();
 
-  const raw = await kv.lrange<string>("usage:log", 0, 199);
+  const raw = await kv.lrange<string>("usage:log", 0, 999);
   return raw.map((entry) => {
     if (typeof entry === "string") return JSON.parse(entry);
     return entry;

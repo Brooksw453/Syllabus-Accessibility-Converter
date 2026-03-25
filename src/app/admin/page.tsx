@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import ThemeToggle from "@/components/ThemeToggle";
+import * as XLSX from "xlsx";
 
 interface UsageEvent {
   email: string;
@@ -35,6 +36,24 @@ export default function AdminPage() {
 
   const uniqueUsers = new Set(log.map((e) => e.email)).size;
   const totalConversions = log.length;
+
+  function handleExportExcel() {
+    const rows = log.map((event) => ({
+      Email: event.email,
+      File: event.fileName,
+      Timestamp: new Date(event.timestamp).toLocaleString(),
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    // Auto-size columns
+    ws["!cols"] = [
+      { wch: 30 }, // Email
+      { wch: 40 }, // File
+      { wch: 22 }, // Timestamp
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Usage History");
+    XLSX.writeFile(wb, `document-ally-usage-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  }
 
   return (
     <>
@@ -100,9 +119,23 @@ export default function AdminPage() {
           {/* Usage log table */}
           <div className="card-gradient-border card-shadow">
             <div className="card-inner p-6">
-              <h2 className="text-lg font-semibold text-primary mb-4">
-                Recent Conversions
-              </h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-primary">
+                  Usage History
+                </h2>
+                {log.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleExportExcel}
+                    className="inline-flex items-center gap-1.5 bg-primary text-white hover:bg-primary-dark text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Export Excel
+                  </button>
+                )}
+              </div>
 
               {loading && (
                 <div className="flex justify-center py-12">
