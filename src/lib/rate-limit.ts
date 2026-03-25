@@ -1,5 +1,5 @@
 const WINDOW_MS = 60 * 60 * 1000; // 1 hour
-const MAX_PER_WINDOW = 5;
+const MAX_PER_WINDOW = 10;
 
 const usage = new Map<string, number[]>();
 

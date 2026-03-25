@@ -17,6 +17,33 @@ type Status =
   | "done"
   | "error";
 
+function ThemeToggle() {
+  const [dark, setDark] = useState(false);
+
+  useEffect(() => {
+    setDark(document.documentElement.classList.contains("dark"));
+  }, []);
+
+  function toggle() {
+    const next = !dark;
+    setDark(next);
+    document.documentElement.classList.toggle("dark", next);
+    localStorage.setItem("da-theme", next ? "dark" : "light");
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      className="theme-toggle"
+      aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+      title={dark ? "Switch to light mode" : "Switch to dark mode"}
+    >
+      {dark ? "☀️" : "🌙"}
+    </button>
+  );
+}
+
 function UploadPageInner() {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
@@ -315,10 +342,11 @@ function UploadPageInner() {
       >
         Skip to main content
       </a>
+      <ThemeToggle />
       <main
         id="main-content"
         tabIndex={-1}
-        className="min-h-screen flex flex-col items-center justify-center p-4 outline-none"
+        className="bg-gradient-page min-h-screen flex flex-col items-center justify-center p-4 outline-none"
       >
         <div className="w-full max-w-2xl">
           {/* Screen reader live region */}
@@ -331,269 +359,271 @@ function UploadPageInner() {
             {status === "error" ? `Error: ${error}` : ""}
           </div>
 
-          {/* Main card */}
-          <div className="bg-surface-card border border-border rounded-2xl p-8 card-shadow">
-            <div className="text-center mb-6">
-              <h1 className="text-2xl font-bold text-primary mb-1 tracking-wide">
-                Upload Your Document
-              </h1>
-              <p className="text-muted text-sm">
-                Upload a <strong className="text-text">.docx</strong> or{" "}
-                <strong className="text-text">.pdf</strong> document to generate
-                an ADA-compliant version.
-              </p>
-            </div>
-
-            {!isProcessing && status !== "preview" && (
-              <div
-                {...getRootProps()}
-                aria-label="Upload zone. Drop or click to select up to 5 .docx or .pdf files."
-                className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all duration-200 ${
-                  isDragActive
-                    ? "border-primary bg-primary/5 shadow-md"
-                    : "border-border hover:border-primary hover:bg-primary/5"
-                }`}
-              >
-                <input {...getInputProps()} />
-                <div className="flex flex-col items-center gap-3">
-                  <svg
-                    className="w-12 h-12 text-muted"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    aria-hidden="true"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                    />
-                  </svg>
-                  <p className="text-muted">
-                    {isDragActive
-                      ? "Drop the file here..."
-                      : "Drag & drop your document here, or click to browse"}
-                  </p>
-                  <p className="text-xs text-muted">
-                    Supported formats: .docx, .pdf &mdash; up to 5 files
-                  </p>
-                  <p className="text-xs text-muted/80 mt-1">
-                    Keyboard users: press{" "}
-                    <kbd className="px-1 py-0.5 bg-surface border border-border rounded text-xs font-mono">
-                      Enter
-                    </kbd>{" "}
-                    or{" "}
-                    <kbd className="px-1 py-0.5 bg-surface border border-border rounded text-xs font-mono">
-                      Space
-                    </kbd>{" "}
-                    to open file selector
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {isProcessing && (
-              <div className="flex flex-col items-center gap-4 py-12">
-                <div
-                  className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"
-                  role="status"
-                  aria-label="Processing"
-                />
-                <div className="text-center">
-                  <p className="font-medium text-primary">{statusMessage}</p>
-                  <p className="text-sm text-muted mt-1">
-                    Analyzing{" "}
-                    <strong className="text-text">{fileName}</strong> for ADA
-                    compliance. This may take up to two minutes.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {status === "preview" && (
-              <div
-                ref={previewRef}
-                tabIndex={-1}
-                className="mt-2 bg-surface-elevated border border-primary/30 rounded-xl p-5 focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <p className="font-semibold text-primary mb-3 text-center">
-                  Accessibility improvements made
+          {/* Main card with gradient border */}
+          <div className="card-gradient-border card-shadow">
+            <div className="card-inner p-8">
+              <div className="text-center mb-6">
+                <h1 className="text-2xl font-bold text-primary mb-1 tracking-wide">
+                  Upload Your Document
+                </h1>
+                <p className="text-muted text-sm">
+                  Upload a <strong className="text-text">.docx</strong> or{" "}
+                  <strong className="text-text">.pdf</strong> document to generate
+                  an ADA-compliant version.
                 </p>
-                {institution && (
-                  <p className="text-xs text-center text-muted mb-3">
-                    Institution detected:{" "}
-                    <strong className="text-primary">{institution}</strong>
-                  </p>
-                )}
-                <ul className="space-y-1.5 mb-5">
-                  {changes.length > 0 ? (
-                    changes.map((change, i) => (
-                      <li key={i} className="flex gap-2 text-sm">
-                        <span
-                          className="text-primary mt-0.5"
-                          aria-hidden="true"
-                        >
-                          &#10003;
-                        </span>
-                        <span className="text-text/80">{change}</span>
-                      </li>
-                    ))
-                  ) : (
-                    <li className="text-sm text-muted">
-                      Document restructured for WCAG 2.2 compliance.
-                    </li>
-                  )}
-                </ul>
-                <button
-                  type="button"
-                  onClick={handleDownload}
-                  className="w-full bg-primary text-white hover:bg-primary-dark font-semibold py-3 px-4 rounded-lg transition-all duration-200 tracking-wide text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                >
-                  Download Accessible Document
-                </button>
               </div>
-            )}
 
-            {status === "done" && (
-              <div className="mt-2 text-center bg-primary/10 border border-primary/30 text-primary px-4 py-3 rounded-lg">
-                {batchResults.length > 1 ? (
-                  <>
-                    <p className="font-medium">
-                      {batchResults.filter((r) => r.ok).length} of{" "}
-                      {batchResults.length} documents converted successfully.
-                    </p>
-                    {batchResults.some((r) => !r.ok) && (
-                      <ul className="text-sm mt-2 text-red-600 dark:text-red-400 text-left space-y-0.5">
-                        {batchResults
-                          .filter((r) => !r.ok)
-                          .map((r) => (
-                            <li key={r.name}>
-                              <span aria-hidden="true">&#10007; </span>
-                              {r.name} &mdash; failed
-                            </li>
-                          ))}
-                      </ul>
-                    )}
-                    <p className="text-sm mt-2 text-primary/70">
-                      Upload more files above to convert again.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p className="font-medium">
-                      Your accessible document has been downloaded.
-                    </p>
-                    <p className="text-sm mt-1 text-primary/70">
-                      Upload another file above to convert again.
-                    </p>
-                  </>
-                )}
-              </div>
-            )}
-
-            {status === "error" && (
-              <div
-                role="alert"
-                className="mt-6 text-center bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/50 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg"
-              >
-                <p className="font-medium">Something went wrong</p>
-                <p className="text-sm mt-1">{error}</p>
-              </div>
-            )}
-
-            {/* About This Tool accordion */}
-            <div className="mt-6 border border-border rounded-lg overflow-hidden">
-              <button
-                type="button"
-                onClick={() => setLearnOpen(!learnOpen)}
-                aria-expanded={learnOpen}
-                aria-controls="about-panel"
-                className="w-full flex items-center justify-between px-4 py-3 text-sm text-muted hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
-              >
-                <span className="font-medium tracking-wide">
-                  About This Tool
-                </span>
-                <span className="text-xs" aria-hidden="true">
-                  {learnOpen ? "\u25B2" : "\u25BC"}
-                </span>
-              </button>
-              {learnOpen && (
+              {!isProcessing && status !== "preview" && (
                 <div
-                  id="about-panel"
-                  className="px-4 pb-4 border-t border-border text-sm text-muted space-y-4"
+                  {...getRootProps()}
+                  aria-label="Upload zone. Drop or click to select up to 5 .docx or .pdf files."
+                  className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all duration-200 ${
+                    isDragActive
+                      ? "border-primary bg-primary/10 shadow-md"
+                      : "border-border hover:border-primary hover:bg-primary/5"
+                  }`}
                 >
-                  <div className="pt-3">
-                    <div className="flex gap-2 items-start bg-primary/5 border border-primary/20 rounded-lg px-3 py-2 mb-3">
-                      <span
-                        className="text-primary mt-0.5"
-                        aria-hidden="true"
-                      >
-                        &#128274;
-                      </span>
-                      <p className="text-xs text-primary/80 leading-relaxed">
-                        <strong>Private &amp; secure.</strong> Your documents
-                        are processed in memory and never stored. No document
-                        data, file contents, or personal information is retained
-                        after conversion.
-                      </p>
-                    </div>
-                    <p className="text-text/80 text-xs leading-relaxed mb-3">
-                      Upload a PDF or DOCX and receive a fully WCAG
-                      2.2-compliant, properly structured Word document ready for
-                      assistive technology.
+                  <input {...getInputProps()} />
+                  <div className="flex flex-col items-center gap-3">
+                    <svg
+                      className="w-12 h-12 text-primary/60"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                      />
+                    </svg>
+                    <p className="text-muted font-medium">
+                      {isDragActive
+                        ? "Drop the file here..."
+                        : "Drag & drop your document here, or click to browse"}
                     </p>
-                    <h2 className="text-xs font-semibold text-primary uppercase tracking-wider mb-2">
-                      How It Works
-                    </h2>
-                    <ol className="space-y-1 text-xs list-decimal list-inside">
-                      <li>Upload a PDF or DOCX document</li>
-                      <li>
-                        AI analyzes and restructures for accessibility compliance
-                      </li>
-                      <li>Download a fully compliant, tagged Word document</li>
-                    </ol>
+                    <p className="text-xs text-muted">
+                      Supported formats: .docx, .pdf &mdash; up to 5 files
+                    </p>
+                    <p className="text-xs text-muted/80 mt-1">
+                      Keyboard users: press{" "}
+                      <kbd className="px-1 py-0.5 bg-surface-elevated border border-border rounded text-xs font-mono">
+                        Enter
+                      </kbd>{" "}
+                      or{" "}
+                      <kbd className="px-1 py-0.5 bg-surface-elevated border border-border rounded text-xs font-mono">
+                        Space
+                      </kbd>{" "}
+                      to open file selector
+                    </p>
                   </div>
-                  <div>
-                    <h2 className="text-xs font-semibold text-primary uppercase tracking-wider mb-2">
-                      AI Capabilities
-                    </h2>
-                    <ul className="space-y-1 text-xs">
-                      {[
-                        "Enforces semantic heading hierarchy (H1\u2192H2\u2192H3)",
-                        "Rewrites vague links into descriptive hyperlinks",
-                        "Converts content into proper numbered and bulleted lists",
-                        "Formats tables with proper header rows for screen readers",
-                        "Sets document language metadata for assistive technology",
-                        "Inserts missing accessibility accommodation statements for syllabi",
-                        "Preserves all original content \u2014 restructures without removing",
-                      ].map((cap) => (
-                        <li key={cap} className="flex gap-2">
+                </div>
+              )}
+
+              {isProcessing && (
+                <div className="flex flex-col items-center gap-4 py-12">
+                  <div
+                    className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"
+                    role="status"
+                    aria-label="Processing"
+                  />
+                  <div className="text-center">
+                    <p className="font-medium text-primary">{statusMessage}</p>
+                    <p className="text-sm text-muted mt-1">
+                      Analyzing{" "}
+                      <strong className="text-text">{fileName}</strong> for ADA
+                      compliance. This may take up to two minutes.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {status === "preview" && (
+                <div
+                  ref={previewRef}
+                  tabIndex={-1}
+                  className="mt-2 bg-surface-elevated border border-primary/30 rounded-xl p-5 focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <p className="font-semibold text-primary mb-3 text-center">
+                    Accessibility improvements made
+                  </p>
+                  {institution && (
+                    <p className="text-xs text-center text-muted mb-3">
+                      Institution detected:{" "}
+                      <strong className="text-primary">{institution}</strong>
+                    </p>
+                  )}
+                  <ul className="space-y-1.5 mb-5">
+                    {changes.length > 0 ? (
+                      changes.map((change, i) => (
+                        <li key={i} className="flex gap-2 text-sm">
                           <span
                             className="text-primary mt-0.5"
                             aria-hidden="true"
                           >
                             &#10003;
                           </span>
-                          <span>{cap}</span>
+                          <span className="text-text/80">{change}</span>
                         </li>
-                      ))}
-                    </ul>
-                  </div>
+                      ))
+                    ) : (
+                      <li className="text-sm text-muted">
+                        Document restructured for WCAG 2.2 compliance.
+                      </li>
+                    )}
+                  </ul>
+                  <button
+                    type="button"
+                    onClick={handleDownload}
+                    className="w-full bg-primary text-white hover:bg-primary-dark font-semibold py-3 px-4 rounded-lg transition-all duration-200 tracking-wide text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2"
+                  >
+                    Download Accessible Document
+                  </button>
                 </div>
               )}
+
+              {status === "done" && (
+                <div className="mt-2 text-center bg-primary/10 border border-primary/30 text-primary px-4 py-3 rounded-lg">
+                  {batchResults.length > 1 ? (
+                    <>
+                      <p className="font-medium">
+                        {batchResults.filter((r) => r.ok).length} of{" "}
+                        {batchResults.length} documents converted successfully.
+                      </p>
+                      {batchResults.some((r) => !r.ok) && (
+                        <ul className="text-sm mt-2 text-red-600 dark:text-red-400 text-left space-y-0.5">
+                          {batchResults
+                            .filter((r) => !r.ok)
+                            .map((r) => (
+                              <li key={r.name}>
+                                <span aria-hidden="true">&#10007; </span>
+                                {r.name} &mdash; failed
+                              </li>
+                            ))}
+                        </ul>
+                      )}
+                      <p className="text-sm mt-2 text-primary/70">
+                        Upload more files above to convert again.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-medium">
+                        Your accessible document has been downloaded.
+                      </p>
+                      <p className="text-sm mt-1 text-primary/70">
+                        Upload another file above to convert again.
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {status === "error" && (
+                <div
+                  role="alert"
+                  className="mt-6 text-center bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/50 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg"
+                >
+                  <p className="font-medium">Something went wrong</p>
+                  <p className="text-sm mt-1">{error}</p>
+                </div>
+              )}
+
+              {/* About This Tool accordion */}
+              <div className="mt-6 border border-border rounded-lg overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setLearnOpen(!learnOpen)}
+                  aria-expanded={learnOpen}
+                  aria-controls="about-panel"
+                  className="w-full flex items-center justify-between px-4 py-3 text-sm text-muted hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+                >
+                  <span className="font-medium tracking-wide">
+                    About This Tool
+                  </span>
+                  <span className="text-xs" aria-hidden="true">
+                    {learnOpen ? "\u25B2" : "\u25BC"}
+                  </span>
+                </button>
+                {learnOpen && (
+                  <div
+                    id="about-panel"
+                    className="px-4 pb-4 border-t border-border text-sm text-muted space-y-4"
+                  >
+                    <div className="pt-3">
+                      <div className="flex gap-2 items-start bg-primary/5 border border-primary/20 rounded-lg px-3 py-2 mb-3">
+                        <span
+                          className="text-primary mt-0.5"
+                          aria-hidden="true"
+                        >
+                          &#128274;
+                        </span>
+                        <p className="text-xs text-primary/80 leading-relaxed">
+                          <strong>Private &amp; secure.</strong> Your documents
+                          are processed in memory and never stored. No document
+                          data, file contents, or personal information is retained
+                          after conversion.
+                        </p>
+                      </div>
+                      <p className="text-text/80 text-xs leading-relaxed mb-3">
+                        Upload a PDF or DOCX and receive a fully WCAG
+                        2.2-compliant, properly structured Word document ready for
+                        assistive technology.
+                      </p>
+                      <h2 className="text-xs font-semibold text-primary uppercase tracking-wider mb-2">
+                        How It Works
+                      </h2>
+                      <ol className="space-y-1 text-xs list-decimal list-inside">
+                        <li>Upload a PDF or DOCX document</li>
+                        <li>
+                          AI analyzes and restructures for accessibility compliance
+                        </li>
+                        <li>Download a fully compliant, tagged Word document</li>
+                      </ol>
+                    </div>
+                    <div>
+                      <h2 className="text-xs font-semibold text-primary uppercase tracking-wider mb-2">
+                        AI Capabilities
+                      </h2>
+                      <ul className="space-y-1 text-xs">
+                        {[
+                          "Enforces semantic heading hierarchy (H1\u2192H2\u2192H3)",
+                          "Rewrites vague links into descriptive hyperlinks",
+                          "Converts content into proper numbered and bulleted lists",
+                          "Formats tables with proper header rows for screen readers",
+                          "Sets document language metadata for assistive technology",
+                          "Inserts missing accessibility accommodation statements for syllabi",
+                          "Preserves all original content \u2014 restructures without removing",
+                        ].map((cap) => (
+                          <li key={cap} className="flex gap-2">
+                            <span
+                              className="text-primary mt-0.5"
+                              aria-hidden="true"
+                            >
+                              &#10003;
+                            </span>
+                            <span>{cap}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
           {/* Footer */}
-          <p className="text-center text-xs text-muted/80 mt-4">
+          <p className="text-center text-xs text-blue-100/70 dark:text-muted/60 mt-4">
             A tool by{" "}
             <a
               href="https://esdesigns.org"
               target="_blank"
               rel="noopener noreferrer"
               aria-label="esdesigns.org (opens in new tab)"
-              className="text-primary/80 hover:text-primary transition-colors"
+              className="text-white/80 dark:text-primary/80 hover:text-white dark:hover:text-primary transition-colors underline underline-offset-2"
             >
               esdesigns.org
             </a>
