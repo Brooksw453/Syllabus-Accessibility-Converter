@@ -3,7 +3,7 @@ import { isAuthenticated, getEmailCookieName } from "@/lib/auth";
 import { checkRateLimit, recordUsage } from "@/lib/rate-limit";
 import { SYSTEM_PROMPT } from "@/lib/system-prompt";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 export async function POST(request: NextRequest) {
   if (!(await isAuthenticated())) {
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 16384,
+        max_tokens: 32768,
         stream: true,
         system: SYSTEM_PROMPT,
         messages: [

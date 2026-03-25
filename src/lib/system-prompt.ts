@@ -71,4 +71,5 @@ Content block rules:
 - "changes" is a top-level array of 3\u20136 plain-English strings summarizing specific accessibility improvements made. Be specific (e.g., "Added H2 headings to 5 sections", "Reformatted 3 raw URLs into descriptive hyperlinks"), not generic. Always include this field.
 - Preserve all original information; do not remove content.
 - Use plain, clear language where possible while preserving academic accuracy.
+- IMPORTANT: For very long documents, you MUST still return complete, valid JSON. If the document is large, keep paragraph text faithful but concise — never let the response get truncated. Completing the JSON structure is more important than preserving every word verbatim.
 - Return ONLY valid JSON.`;
