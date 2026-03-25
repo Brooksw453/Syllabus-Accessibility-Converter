@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Tell Tailwind to use .dark class instead of prefers-color-scheme media query */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --color-primary: #2563EB;
   --color-primary-dark: #1D4ED8;
