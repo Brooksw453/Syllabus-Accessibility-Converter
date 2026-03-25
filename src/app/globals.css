@@ -3,7 +3,7 @@
 /* Tell Tailwind to use .dark class instead of prefers-color-scheme media query */
 @custom-variant dark (&:where(.dark, .dark *));
 
-@theme inline {
+@theme {
   --color-primary: #2563EB;
   --color-primary-dark: #1D4ED8;
   --color-accent: #3B82F6;

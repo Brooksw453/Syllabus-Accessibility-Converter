@@ -8,7 +8,6 @@ import {
   generateAccessibleDocxBlob,
   type AccessibleDocument,
 } from "@/lib/generate-docx-client";
-import ThemeToggle from "@/components/ThemeToggle";
 
 const RAINBOW_CHECKS = [
   "text-violet-600 dark:text-violet-400",
@@ -16,6 +15,56 @@ const RAINBOW_CHECKS = [
   "text-orange-600 dark:text-orange-400",
   "text-cyan-600 dark:text-cyan-400",
 ];
+
+/** Inline theme toggle for the status bar (no fixed positioning) */
+function ThemeToggleInline() {
+  const [dark, setDark] = useState(false);
+  useEffect(() => {
+    setDark(document.documentElement.classList.contains("dark"));
+  }, []);
+  function toggle() {
+    const next = !dark;
+    setDark(next);
+    document.documentElement.classList.toggle("dark", next);
+    localStorage.setItem("da-theme", next ? "dark" : "light");
+  }
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      className="w-7 h-7 rounded-full flex items-center justify-center bg-white/15 hover:bg-white/25 border border-white/20 transition-all text-sm shrink-0"
+      aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+      title={dark ? "Switch to light mode" : "Switch to dark mode"}
+    >
+      {dark ? "\u2600\uFE0F" : "\uD83C\uDF19"}
+    </button>
+  );
+}
+
+/** Floating theme toggle (same as ThemeToggle component, used when status bar isn't visible) */
+function FloatingThemeToggle() {
+  const [dark, setDark] = useState(false);
+  useEffect(() => {
+    setDark(document.documentElement.classList.contains("dark"));
+  }, []);
+  function toggle() {
+    const next = !dark;
+    setDark(next);
+    document.documentElement.classList.toggle("dark", next);
+    localStorage.setItem("da-theme", next ? "dark" : "light");
+  }
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      className="theme-toggle"
+      aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+      title={dark ? "Switch to light mode" : "Switch to dark mode"}
+    >
+      {dark ? "\u2600\uFE0F" : "\uD83C\uDF19"}
+    </button>
+  );
+}
 
 type Status =
   | "idle"
@@ -387,37 +436,41 @@ function UploadPageInner() {
       >
         Skip to main content
       </a>
-      <ThemeToggle />
-
-      {/* Top bar with user info, remaining docs, logout */}
+      {/* Top bar with user info, theme toggle, remaining docs, logout */}
       {userStatus && (
         <div className="fixed top-0 left-0 right-0 z-40 bg-black/20 backdrop-blur-sm border-b border-white/10">
-          <div className="max-w-4xl mx-auto px-4 py-2 flex items-center justify-between text-xs text-white">
-            <div className="flex items-center gap-3">
-              <span className="opacity-80">{userStatus.email}</span>
+          <div className="max-w-4xl mx-auto px-3 sm:px-4 py-2 flex flex-wrap items-center justify-between gap-y-1 text-xs text-white">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <span className="opacity-80 truncate max-w-[160px] sm:max-w-none">{userStatus.email}</span>
               {userStatus.admin && (
                 <a
                   href="/admin"
-                  className="bg-violet-500/80 hover:bg-violet-500 text-white px-2 py-0.5 rounded font-semibold transition-colors"
+                  className="bg-violet-500/80 hover:bg-violet-500 text-white px-2 py-0.5 rounded font-semibold transition-colors shrink-0"
                 >
                   Admin
                 </a>
               )}
             </div>
-            <div className="flex items-center gap-3">
-              {userStatus.remaining != null && (
-                <span className="opacity-80">
-                  {userStatus.remaining} conversions remaining
+            <div className="flex items-center gap-2 sm:gap-3">
+              {userStatus.remaining != null && !userStatus.admin && (
+                <span className="opacity-80 hidden sm:inline">
+                  {userStatus.remaining} remaining
                   {countdown != null && countdown > 0 && (
                     <span className="ml-1 text-amber-300">
-                      (resets in {formatCountdown(countdown)})
+                      ({formatCountdown(countdown)})
                     </span>
                   )}
+                </span>
+              )}
+              {userStatus.remaining != null && !userStatus.admin && (
+                <span className="opacity-80 sm:hidden">
+                  {userStatus.remaining} left
                 </span>
               )}
               {userStatus.admin && (
                 <span className="text-amber-300 font-semibold">Unlimited</span>
               )}
+              <ThemeToggleInline />
               <button
                 type="button"
                 onClick={handleLogout}
@@ -429,6 +482,9 @@ function UploadPageInner() {
           </div>
         </div>
       )}
+
+      {/* Show floating theme toggle only when status bar isn't visible yet */}
+      {!userStatus && <FloatingThemeToggle />}
 
       <main
         id="main-content"
