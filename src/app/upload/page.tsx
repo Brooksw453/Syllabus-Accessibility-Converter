@@ -30,6 +30,7 @@ function UploadPageInner() {
   const [error, setError] = useState("");
   const [fileName, setFileName] = useState("");
   const [learnOpen, setLearnOpen] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
   const [changes, setChanges] = useState<string[]>([]);
   const [pendingBlob, setPendingBlob] = useState<Blob | null>(null);
   const [pendingDownloadName, setPendingDownloadName] = useState("");
@@ -47,6 +48,15 @@ function UploadPageInner() {
       previewRef.current.focus();
     }
   }, [status]);
+
+  // Check if current user is admin
+  useEffect(() => {
+    fetch("/api/admin/usage", { method: "GET" })
+      .then((res) => {
+        if (res.ok) setShowAdmin(true);
+      })
+      .catch(() => {});
+  }, []);
 
   async function processOneFile(
     file: File
@@ -348,8 +358,8 @@ function UploadPageInner() {
                   Upload Your Document
                 </h1>
                 <p className="text-muted text-sm">
-                  Upload a <strong className="text-text">.docx</strong> or{" "}
-                  <strong className="text-text">.pdf</strong> document to
+                  Upload a <strong className="text-primary font-bold">.docx</strong> or{" "}
+                  <strong className="text-primary font-bold">.pdf</strong> document to
                   generate an ADA-compliant version.
                 </p>
               </div>
@@ -446,7 +456,7 @@ function UploadPageInner() {
                           >
                             &#10003;
                           </span>
-                          <span className="text-text dark:text-slate-200">
+                          <span className="text-text text-text">
                             {change}
                           </span>
                         </li>
@@ -550,7 +560,7 @@ function UploadPageInner() {
                           retained after conversion.
                         </p>
                       </div>
-                      <p className="text-text dark:text-slate-200 text-xs leading-relaxed mb-3">
+                      <p className="text-text text-xs leading-relaxed mb-3">
                         Upload a PDF or DOCX and receive a fully WCAG
                         2.2-compliant, properly structured Word document ready
                         for assistive technology.
@@ -558,7 +568,7 @@ function UploadPageInner() {
                       <h2 className="text-xs font-semibold text-primary uppercase tracking-wider mb-2">
                         How It Works
                       </h2>
-                      <ol className="space-y-1 text-xs list-decimal list-inside text-text dark:text-slate-200">
+                      <ol className="space-y-1 text-xs list-decimal list-inside text-text">
                         <li>Upload a PDF or DOCX document</li>
                         <li>
                           AI analyzes and restructures for accessibility
@@ -590,7 +600,7 @@ function UploadPageInner() {
                             >
                               &#10003;
                             </span>
-                            <span className="text-text dark:text-slate-200">
+                            <span className="text-text">
                               {cap}
                             </span>
                           </li>
@@ -602,6 +612,21 @@ function UploadPageInner() {
               </div>
             </div>
           </div>
+
+          {/* Admin link */}
+          {showAdmin && (
+            <div className="text-center mt-4">
+              <a
+                href="/admin"
+                className="inline-flex items-center gap-1.5 text-sm text-white dark:text-blue-300 bg-white/15 dark:bg-blue-400/10 hover:bg-white/25 dark:hover:bg-blue-400/20 border border-white/20 dark:border-blue-400/30 px-4 py-2 rounded-lg transition-colors font-medium"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Admin Dashboard
+              </a>
+            </div>
+          )}
 
           {/* Footer */}
           <p className="text-center text-xs text-white/90 dark:text-slate-300 mt-4">

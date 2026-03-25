@@ -169,7 +169,7 @@ function LoginPageInner() {
                           retained after conversion.
                         </p>
                       </div>
-                      <p className="text-text dark:text-slate-200 text-xs leading-relaxed mb-3">
+                      <p className="text-text text-xs leading-relaxed mb-3">
                         Upload a PDF or DOCX document and receive a fully WCAG
                         2.2-compliant, properly structured Word document ready
                         for assistive technology.
@@ -177,7 +177,7 @@ function LoginPageInner() {
                       <h2 className="text-xs font-semibold text-primary uppercase tracking-wider mb-2">
                         How It Works
                       </h2>
-                      <ol className="space-y-1 text-xs list-decimal list-inside text-text dark:text-slate-200">
+                      <ol className="space-y-1 text-xs list-decimal list-inside text-text">
                         <li>Upload a PDF or DOCX document</li>
                         <li>AI analyzes and restructures for accessibility</li>
                         <li>
@@ -206,7 +206,7 @@ function LoginPageInner() {
                             >
                               &#10003;
                             </span>
-                            <span className="text-text dark:text-slate-200">
+                            <span className="text-text">
                               {cap}
                             </span>
                           </li>

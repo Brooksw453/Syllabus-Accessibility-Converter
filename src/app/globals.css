@@ -24,10 +24,10 @@
   --color-accent-hover: #BFDBFE;
   --color-surface: #0F172A;
   --color-surface-card: #1E293B;
-  --color-surface-elevated: #334155;
-  --color-border: #334155;
-  --color-muted: #94A3B8;
-  --color-text: #F1F5F9;
+  --color-surface-elevated: #293548;
+  --color-border: #475569;
+  --color-muted: #CBD5E1;
+  --color-text: #F8FAFC;
 }
 
 body {
