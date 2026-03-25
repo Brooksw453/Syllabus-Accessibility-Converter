@@ -1,34 +1,15 @@
 "use client";
 
-import { useState, useEffect, FormEvent, Suspense } from "react";
+import { useState, FormEvent, Suspense } from "react";
 import { useRouter } from "next/navigation";
+import ThemeToggle from "@/components/ThemeToggle";
 
-function ThemeToggle() {
-  const [dark, setDark] = useState(false);
-
-  useEffect(() => {
-    setDark(document.documentElement.classList.contains("dark"));
-  }, []);
-
-  function toggle() {
-    const next = !dark;
-    setDark(next);
-    document.documentElement.classList.toggle("dark", next);
-    localStorage.setItem("da-theme", next ? "dark" : "light");
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={toggle}
-      className="theme-toggle"
-      aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
-      title={dark ? "Switch to light mode" : "Switch to dark mode"}
-    >
-      {dark ? "☀️" : "🌙"}
-    </button>
-  );
-}
+const RAINBOW_CHECKS = [
+  "text-violet-600 dark:text-violet-400",
+  "text-pink-600 dark:text-pink-400",
+  "text-orange-600 dark:text-orange-400",
+  "text-cyan-600 dark:text-cyan-400",
+];
 
 function LoginPageInner() {
   const [email, setEmail] = useState("");
@@ -81,8 +62,19 @@ function LoginPageInner() {
           {/* Logo / brand area above card */}
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/15 backdrop-blur-sm border border-white/20 mb-4">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              <svg
+                className="w-8 h-8 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
               </svg>
             </div>
             <h1 className="text-3xl font-bold text-white mb-1 tracking-wide">
@@ -111,7 +103,7 @@ function LoginPageInner() {
                     onChange={(e) => setEmail(e.target.value)}
                     autoFocus
                     autoComplete="email"
-                    className="w-full px-4 py-3 bg-surface-elevated border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary placeholder-muted/50 text-sm"
+                    className="w-full px-4 py-3 bg-surface-elevated border border-border rounded-lg text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary placeholder-muted/70 dark:placeholder-slate-500 text-sm"
                     placeholder="your@email.edu"
                   />
                 </div>
@@ -128,7 +120,7 @@ function LoginPageInner() {
                 <button
                   type="submit"
                   disabled={loading || !emailValid}
-                  className="w-full bg-primary text-white hover:bg-primary-dark font-semibold py-3 px-4 rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed tracking-wide text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2"
+                  className="w-full bg-primary text-white hover:bg-primary-dark font-semibold py-3 px-4 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed tracking-wide text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2"
                 >
                   {loading ? "Signing in..." : "Get Started"}
                 </button>
@@ -164,28 +156,33 @@ function LoginPageInner() {
                   >
                     <div className="pt-3">
                       <div className="flex gap-2 items-start bg-primary/5 border border-primary/20 rounded-lg px-3 py-2 mb-3">
-                        <span className="text-primary mt-0.5" aria-hidden="true">
+                        <span
+                          className="text-primary mt-0.5"
+                          aria-hidden="true"
+                        >
                           &#128274;
                         </span>
-                        <p className="text-xs text-primary/80 leading-relaxed">
-                          <strong>Private &amp; secure.</strong> Your documents are
-                          processed in memory and never stored. No document data,
-                          file contents, or personal information is retained after
-                          conversion.
+                        <p className="text-xs text-primary dark:text-blue-300 leading-relaxed">
+                          <strong>Private &amp; secure.</strong> Your documents
+                          are processed in memory and never stored. No document
+                          data, file contents, or personal information is
+                          retained after conversion.
                         </p>
                       </div>
-                      <p className="text-text/80 text-xs leading-relaxed mb-3">
+                      <p className="text-text dark:text-slate-200 text-xs leading-relaxed mb-3">
                         Upload a PDF or DOCX document and receive a fully WCAG
-                        2.2-compliant, properly structured Word document ready for
-                        assistive technology.
+                        2.2-compliant, properly structured Word document ready
+                        for assistive technology.
                       </p>
                       <h2 className="text-xs font-semibold text-primary uppercase tracking-wider mb-2">
                         How It Works
                       </h2>
-                      <ol className="space-y-1 text-xs list-decimal list-inside">
+                      <ol className="space-y-1 text-xs list-decimal list-inside text-text dark:text-slate-200">
                         <li>Upload a PDF or DOCX document</li>
                         <li>AI analyzes and restructures for accessibility</li>
-                        <li>Download a fully compliant, tagged Word document</li>
+                        <li>
+                          Download a fully compliant, tagged Word document
+                        </li>
                       </ol>
                     </div>
                     <div>
@@ -201,15 +198,17 @@ function LoginPageInner() {
                           "Sets document language metadata for assistive technology",
                           "Inserts missing accessibility accommodation statements",
                           "Preserves all original content \u2014 restructures without removing",
-                        ].map((cap) => (
+                        ].map((cap, i) => (
                           <li key={cap} className="flex gap-2">
                             <span
-                              className="text-primary mt-0.5"
+                              className={`mt-0.5 ${RAINBOW_CHECKS[i % RAINBOW_CHECKS.length]}`}
                               aria-hidden="true"
                             >
                               &#10003;
                             </span>
-                            <span>{cap}</span>
+                            <span className="text-text dark:text-slate-200">
+                              {cap}
+                            </span>
                           </li>
                         ))}
                       </ul>
@@ -221,14 +220,14 @@ function LoginPageInner() {
           </div>
 
           {/* Footer */}
-          <p className="text-center text-xs text-blue-100/70 dark:text-muted/60 mt-4">
+          <p className="text-center text-xs text-white/90 dark:text-slate-300 mt-4">
             A tool by{" "}
             <a
               href="https://esdesigns.org"
               target="_blank"
               rel="noopener noreferrer"
               aria-label="esdesigns.org (opens in new tab)"
-              className="text-white/80 dark:text-primary/80 hover:text-white dark:hover:text-primary transition-colors underline underline-offset-2"
+              className="text-white dark:text-blue-300 hover:text-blue-100 dark:hover:text-blue-200 transition-colors underline underline-offset-2"
             >
               esdesigns.org
             </a>

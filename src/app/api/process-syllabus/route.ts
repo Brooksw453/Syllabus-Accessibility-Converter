@@ -13,12 +13,12 @@ export async function POST(request: NextRequest) {
   const userEmail =
     request.cookies.get(getEmailCookieName())?.value ?? "unknown";
 
-  // Rate limit: 5 documents per hour per email
-  const { allowed, remaining, resetInSeconds } = checkRateLimit(userEmail);
+  // Rate limit: 10 documents per hour per email (admins are unlimited)
+  const { allowed, remaining, resetInSeconds } = await checkRateLimit(userEmail);
   if (!allowed) {
     return NextResponse.json(
       {
-        error: `Rate limit reached. You can convert 5 documents per hour. Try again in ${Math.ceil(resetInSeconds / 60)} minutes.`,
+        error: `Rate limit reached. You can convert 10 documents per hour. Try again in ${Math.ceil(resetInSeconds / 60)} minutes.`,
         remaining,
         resetInSeconds,
       },
@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Record usage only after successful completion
-        recordUsage(userEmail);
+        await recordUsage(userEmail, fileName ?? "unknown");
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Stream failed";

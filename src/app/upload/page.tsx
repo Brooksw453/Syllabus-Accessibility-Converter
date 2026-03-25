@@ -7,6 +7,14 @@ import {
   generateAccessibleDocxBlob,
   type AccessibleDocument,
 } from "@/lib/generate-docx-client";
+import ThemeToggle from "@/components/ThemeToggle";
+
+const RAINBOW_CHECKS = [
+  "text-violet-600 dark:text-violet-400",
+  "text-pink-600 dark:text-pink-400",
+  "text-orange-600 dark:text-orange-400",
+  "text-cyan-600 dark:text-cyan-400",
+];
 
 type Status =
   | "idle"
@@ -16,33 +24,6 @@ type Status =
   | "preview"
   | "done"
   | "error";
-
-function ThemeToggle() {
-  const [dark, setDark] = useState(false);
-
-  useEffect(() => {
-    setDark(document.documentElement.classList.contains("dark"));
-  }, []);
-
-  function toggle() {
-    const next = !dark;
-    setDark(next);
-    document.documentElement.classList.toggle("dark", next);
-    localStorage.setItem("da-theme", next ? "dark" : "light");
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={toggle}
-      className="theme-toggle"
-      aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
-      title={dark ? "Switch to light mode" : "Switch to dark mode"}
-    >
-      {dark ? "☀️" : "🌙"}
-    </button>
-  );
-}
 
 function UploadPageInner() {
   const [status, setStatus] = useState<Status>("idle");
@@ -368,8 +349,8 @@ function UploadPageInner() {
                 </h1>
                 <p className="text-muted text-sm">
                   Upload a <strong className="text-text">.docx</strong> or{" "}
-                  <strong className="text-text">.pdf</strong> document to generate
-                  an ADA-compliant version.
+                  <strong className="text-text">.pdf</strong> document to
+                  generate an ADA-compliant version.
                 </p>
               </div>
 
@@ -407,7 +388,7 @@ function UploadPageInner() {
                     <p className="text-xs text-muted">
                       Supported formats: .docx, .pdf &mdash; up to 5 files
                     </p>
-                    <p className="text-xs text-muted/80 mt-1">
+                    <p className="text-xs text-muted dark:text-slate-400 mt-1">
                       Keyboard users: press{" "}
                       <kbd className="px-1 py-0.5 bg-surface-elevated border border-border rounded text-xs font-mono">
                         Enter
@@ -460,12 +441,14 @@ function UploadPageInner() {
                       changes.map((change, i) => (
                         <li key={i} className="flex gap-2 text-sm">
                           <span
-                            className="text-primary mt-0.5"
+                            className={`mt-0.5 ${RAINBOW_CHECKS[i % RAINBOW_CHECKS.length]}`}
                             aria-hidden="true"
                           >
                             &#10003;
                           </span>
-                          <span className="text-text/80">{change}</span>
+                          <span className="text-text dark:text-slate-200">
+                            {change}
+                          </span>
                         </li>
                       ))
                     ) : (
@@ -504,7 +487,7 @@ function UploadPageInner() {
                             ))}
                         </ul>
                       )}
-                      <p className="text-sm mt-2 text-primary/70">
+                      <p className="text-sm mt-2 text-primary dark:text-blue-300">
                         Upload more files above to convert again.
                       </p>
                     </>
@@ -513,7 +496,7 @@ function UploadPageInner() {
                       <p className="font-medium">
                         Your accessible document has been downloaded.
                       </p>
-                      <p className="text-sm mt-1 text-primary/70">
+                      <p className="text-sm mt-1 text-primary dark:text-blue-300">
                         Upload another file above to convert again.
                       </p>
                     </>
@@ -560,27 +543,30 @@ function UploadPageInner() {
                         >
                           &#128274;
                         </span>
-                        <p className="text-xs text-primary/80 leading-relaxed">
+                        <p className="text-xs text-primary dark:text-blue-300 leading-relaxed">
                           <strong>Private &amp; secure.</strong> Your documents
                           are processed in memory and never stored. No document
-                          data, file contents, or personal information is retained
-                          after conversion.
+                          data, file contents, or personal information is
+                          retained after conversion.
                         </p>
                       </div>
-                      <p className="text-text/80 text-xs leading-relaxed mb-3">
+                      <p className="text-text dark:text-slate-200 text-xs leading-relaxed mb-3">
                         Upload a PDF or DOCX and receive a fully WCAG
-                        2.2-compliant, properly structured Word document ready for
-                        assistive technology.
+                        2.2-compliant, properly structured Word document ready
+                        for assistive technology.
                       </p>
                       <h2 className="text-xs font-semibold text-primary uppercase tracking-wider mb-2">
                         How It Works
                       </h2>
-                      <ol className="space-y-1 text-xs list-decimal list-inside">
+                      <ol className="space-y-1 text-xs list-decimal list-inside text-text dark:text-slate-200">
                         <li>Upload a PDF or DOCX document</li>
                         <li>
-                          AI analyzes and restructures for accessibility compliance
+                          AI analyzes and restructures for accessibility
+                          compliance
                         </li>
-                        <li>Download a fully compliant, tagged Word document</li>
+                        <li>
+                          Download a fully compliant, tagged Word document
+                        </li>
                       </ol>
                     </div>
                     <div>
@@ -596,15 +582,17 @@ function UploadPageInner() {
                           "Sets document language metadata for assistive technology",
                           "Inserts missing accessibility accommodation statements for syllabi",
                           "Preserves all original content \u2014 restructures without removing",
-                        ].map((cap) => (
+                        ].map((cap, i) => (
                           <li key={cap} className="flex gap-2">
                             <span
-                              className="text-primary mt-0.5"
+                              className={`mt-0.5 ${RAINBOW_CHECKS[i % RAINBOW_CHECKS.length]}`}
                               aria-hidden="true"
                             >
                               &#10003;
                             </span>
-                            <span>{cap}</span>
+                            <span className="text-text dark:text-slate-200">
+                              {cap}
+                            </span>
                           </li>
                         ))}
                       </ul>
@@ -616,14 +604,14 @@ function UploadPageInner() {
           </div>
 
           {/* Footer */}
-          <p className="text-center text-xs text-blue-100/70 dark:text-muted/60 mt-4">
+          <p className="text-center text-xs text-white/90 dark:text-slate-300 mt-4">
             A tool by{" "}
             <a
               href="https://esdesigns.org"
               target="_blank"
               rel="noopener noreferrer"
               aria-label="esdesigns.org (opens in new tab)"
-              className="text-white/80 dark:text-primary/80 hover:text-white dark:hover:text-primary transition-colors underline underline-offset-2"
+              className="text-white dark:text-blue-300 hover:text-blue-100 dark:hover:text-blue-200 transition-colors underline underline-offset-2"
             >
               esdesigns.org
             </a>
