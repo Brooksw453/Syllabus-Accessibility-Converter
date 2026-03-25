@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState, Suspense, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useDropzone } from "react-dropzone";
 import mammoth from "mammoth";
 import {
@@ -25,12 +26,18 @@ type Status =
   | "done"
   | "error";
 
+interface UserStatus {
+  email: string;
+  admin: boolean;
+  remaining: number | null;
+  resetInSeconds: number | null;
+}
+
 function UploadPageInner() {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
   const [fileName, setFileName] = useState("");
   const [learnOpen, setLearnOpen] = useState(false);
-  const [showAdmin, setShowAdmin] = useState(false);
   const [changes, setChanges] = useState<string[]>([]);
   const [pendingBlob, setPendingBlob] = useState<Blob | null>(null);
   const [pendingDownloadName, setPendingDownloadName] = useState("");
@@ -40,7 +47,10 @@ function UploadPageInner() {
     { name: string; ok: boolean }[]
   >([]);
   const [institution, setInstitution] = useState<string | null>(null);
+  const [userStatus, setUserStatus] = useState<UserStatus | null>(null);
+  const [countdown, setCountdown] = useState<number | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   // Move focus to preview panel when it appears
   useEffect(() => {
@@ -49,14 +59,52 @@ function UploadPageInner() {
     }
   }, [status]);
 
-  // Check if current user is admin
-  useEffect(() => {
-    fetch("/api/admin/usage", { method: "GET" })
-      .then((res) => {
-        if (res.ok) setShowAdmin(true);
+  // Fetch user status (email, admin, remaining docs, reset time)
+  function refreshUserStatus() {
+    fetch("/api/user/status")
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data: UserStatus = await res.json();
+        setUserStatus(data);
+        if (data.resetInSeconds != null && data.remaining != null && data.remaining < 10) {
+          setCountdown(data.resetInSeconds);
+        } else {
+          setCountdown(null);
+        }
       })
       .catch(() => {});
+  }
+
+  useEffect(() => {
+    refreshUserStatus();
   }, []);
+
+  // Refresh status after each conversion
+  useEffect(() => {
+    if (status === "preview" || status === "done") {
+      refreshUserStatus();
+    }
+  }, [status]);
+
+  // Countdown timer
+  useEffect(() => {
+    if (countdown == null || countdown <= 0) return;
+    const interval = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev == null || prev <= 1) {
+          refreshUserStatus();
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [countdown]);
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/");
+  }
 
   async function processOneFile(
     file: File
@@ -325,6 +373,12 @@ function UploadPageInner() {
           ? "Generating accessible document..."
           : "Processing Accessibility Updates...";
 
+  function formatCountdown(seconds: number): string {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  }
+
   return (
     <>
       <a
@@ -334,10 +388,52 @@ function UploadPageInner() {
         Skip to main content
       </a>
       <ThemeToggle />
+
+      {/* Top bar with user info, remaining docs, logout */}
+      {userStatus && (
+        <div className="fixed top-0 left-0 right-0 z-40 bg-black/20 backdrop-blur-sm border-b border-white/10">
+          <div className="max-w-4xl mx-auto px-4 py-2 flex items-center justify-between text-xs text-white">
+            <div className="flex items-center gap-3">
+              <span className="opacity-80">{userStatus.email}</span>
+              {userStatus.admin && (
+                <a
+                  href="/admin"
+                  className="bg-violet-500/80 hover:bg-violet-500 text-white px-2 py-0.5 rounded font-semibold transition-colors"
+                >
+                  Admin
+                </a>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              {userStatus.remaining != null && (
+                <span className="opacity-80">
+                  {userStatus.remaining} conversions remaining
+                  {countdown != null && countdown > 0 && (
+                    <span className="ml-1 text-amber-300">
+                      (resets in {formatCountdown(countdown)})
+                    </span>
+                  )}
+                </span>
+              )}
+              {userStatus.admin && (
+                <span className="text-amber-300 font-semibold">Unlimited</span>
+              )}
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="text-white/70 hover:text-white transition-colors underline underline-offset-2"
+              >
+                Sign out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <main
         id="main-content"
         tabIndex={-1}
-        className="bg-gradient-page min-h-screen flex flex-col items-center justify-center p-4 outline-none"
+        className="bg-gradient-page min-h-screen flex flex-col items-center justify-center p-4 pt-14 outline-none"
       >
         <div className="w-full max-w-2xl">
           {/* Screen reader live region */}
@@ -377,7 +473,7 @@ function UploadPageInner() {
                   <input {...getInputProps()} />
                   <div className="flex flex-col items-center gap-3">
                     <svg
-                      className="w-12 h-12 text-primary/60"
+                      className="w-12 h-12 text-primary"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -390,7 +486,7 @@ function UploadPageInner() {
                         d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
                       />
                     </svg>
-                    <p className="text-muted font-medium">
+                    <p className="text-text font-medium">
                       {isDragActive
                         ? "Drop the file here..."
                         : "Drag & drop your document here, or click to browse"}
@@ -398,13 +494,13 @@ function UploadPageInner() {
                     <p className="text-xs text-muted">
                       Supported formats: .docx, .pdf &mdash; up to 5 files
                     </p>
-                    <p className="text-xs text-muted dark:text-slate-400 mt-1">
+                    <p className="text-xs text-muted mt-1">
                       Keyboard users: press{" "}
-                      <kbd className="px-1 py-0.5 bg-surface-elevated border border-border rounded text-xs font-mono">
+                      <kbd className="px-1 py-0.5 bg-surface-elevated border border-border rounded text-xs font-mono text-text">
                         Enter
                       </kbd>{" "}
                       or{" "}
-                      <kbd className="px-1 py-0.5 bg-surface-elevated border border-border rounded text-xs font-mono">
+                      <kbd className="px-1 py-0.5 bg-surface-elevated border border-border rounded text-xs font-mono text-text">
                         Space
                       </kbd>{" "}
                       to open file selector
@@ -422,10 +518,10 @@ function UploadPageInner() {
                   />
                   <div className="text-center">
                     <p className="font-medium text-primary">{statusMessage}</p>
-                    <p className="text-sm text-muted mt-1">
+                    <p className="text-sm text-text mt-1">
                       Analyzing{" "}
-                      <strong className="text-text">{fileName}</strong> for ADA
-                      compliance. This may take up to two minutes.
+                      <strong className="text-primary">{fileName}</strong> for
+                      ADA compliance. This may take up to two minutes.
                     </p>
                   </div>
                 </div>
@@ -456,13 +552,11 @@ function UploadPageInner() {
                           >
                             &#10003;
                           </span>
-                          <span className="text-text text-text">
-                            {change}
-                          </span>
+                          <span className="text-text">{change}</span>
                         </li>
                       ))
                     ) : (
-                      <li className="text-sm text-muted">
+                      <li className="text-sm text-text">
                         Document restructured for WCAG 2.2 compliance.
                       </li>
                     )}
@@ -497,7 +591,7 @@ function UploadPageInner() {
                             ))}
                         </ul>
                       )}
-                      <p className="text-sm mt-2 text-primary dark:text-blue-300">
+                      <p className="text-sm mt-2 text-primary">
                         Upload more files above to convert again.
                       </p>
                     </>
@@ -506,7 +600,7 @@ function UploadPageInner() {
                       <p className="font-medium">
                         Your accessible document has been downloaded.
                       </p>
-                      <p className="text-sm mt-1 text-primary dark:text-blue-300">
+                      <p className="text-sm mt-1 text-primary">
                         Upload another file above to convert again.
                       </p>
                     </>
@@ -531,7 +625,7 @@ function UploadPageInner() {
                   onClick={() => setLearnOpen(!learnOpen)}
                   aria-expanded={learnOpen}
                   aria-controls="about-panel"
-                  className="w-full flex items-center justify-between px-4 py-3 text-sm text-muted hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+                  className="w-full flex items-center justify-between px-4 py-3 text-sm text-text hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
                 >
                   <span className="font-medium tracking-wide">
                     About This Tool
@@ -543,17 +637,17 @@ function UploadPageInner() {
                 {learnOpen && (
                   <div
                     id="about-panel"
-                    className="px-4 pb-4 border-t border-border text-sm text-muted space-y-4"
+                    className="px-4 pb-4 border-t border-border text-sm space-y-4"
                   >
                     <div className="pt-3">
-                      <div className="flex gap-2 items-start bg-primary/5 border border-primary/20 rounded-lg px-3 py-2 mb-3">
+                      <div className="flex gap-2 items-start bg-primary/10 border border-primary/30 rounded-lg px-3 py-2 mb-3">
                         <span
                           className="text-primary mt-0.5"
                           aria-hidden="true"
                         >
                           &#128274;
                         </span>
-                        <p className="text-xs text-primary dark:text-blue-300 leading-relaxed">
+                        <p className="text-xs text-primary leading-relaxed">
                           <strong>Private &amp; secure.</strong> Your documents
                           are processed in memory and never stored. No document
                           data, file contents, or personal information is
@@ -600,9 +694,7 @@ function UploadPageInner() {
                             >
                               &#10003;
                             </span>
-                            <span className="text-text">
-                              {cap}
-                            </span>
+                            <span className="text-text">{cap}</span>
                           </li>
                         ))}
                       </ul>
@@ -612,21 +704,6 @@ function UploadPageInner() {
               </div>
             </div>
           </div>
-
-          {/* Admin link */}
-          {showAdmin && (
-            <div className="text-center mt-4">
-              <a
-                href="/admin"
-                className="inline-flex items-center gap-1.5 text-sm text-white dark:text-blue-300 bg-white/15 dark:bg-blue-400/10 hover:bg-white/25 dark:hover:bg-blue-400/20 border border-white/20 dark:border-blue-400/30 px-4 py-2 rounded-lg transition-colors font-medium"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Admin Dashboard
-              </a>
-            </div>
-          )}
 
           {/* Footer */}
           <p className="text-center text-xs text-white/90 dark:text-slate-300 mt-4">

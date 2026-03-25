@@ -4,16 +4,18 @@ export function middleware(request: NextRequest) {
   const authCookie = request.cookies.get("docally-auth");
   const isAuthed = authCookie?.value === "authenticated";
 
-  const isUploadPage = request.nextUrl.pathname.startsWith("/upload");
-  const isAdminPage = request.nextUrl.pathname.startsWith("/admin");
-  const isProcessApi = request.nextUrl.pathname.startsWith("/api/process-syllabus");
-  const isAdminApi = request.nextUrl.pathname.startsWith("/api/admin");
+  const path = request.nextUrl.pathname;
+  const isProtectedPage = path.startsWith("/upload") || path.startsWith("/admin");
+  const isProtectedApi =
+    path.startsWith("/api/process-syllabus") ||
+    path.startsWith("/api/admin") ||
+    path.startsWith("/api/user");
 
-  if (isUploadPage || isAdminPage || isProcessApi || isAdminApi) {
+  if (isProtectedPage || isProtectedApi) {
     if (isAuthed) {
       return NextResponse.next();
     }
-    if (isProcessApi || isAdminApi) {
+    if (isProtectedApi) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     return NextResponse.redirect(new URL("/", request.url));
@@ -23,5 +25,11 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/upload/:path*", "/admin/:path*", "/api/process-syllabus", "/api/admin/:path*"],
+  matcher: [
+    "/upload/:path*",
+    "/admin/:path*",
+    "/api/process-syllabus",
+    "/api/admin/:path*",
+    "/api/user/:path*",
+  ],
 };

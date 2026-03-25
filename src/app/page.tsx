@@ -142,7 +142,7 @@ function LoginPageInner() {
                   onClick={() => setLearnOpen(!learnOpen)}
                   aria-expanded={learnOpen}
                   aria-controls="learn-more-panel"
-                  className="w-full flex items-center justify-between px-4 py-3 text-sm text-muted hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+                  className="w-full flex items-center justify-between px-4 py-3 text-sm text-text hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
                 >
                   <span className="font-medium tracking-wide">Learn More</span>
                   <span className="text-xs" aria-hidden="true">
@@ -152,10 +152,10 @@ function LoginPageInner() {
                 {learnOpen && (
                   <div
                     id="learn-more-panel"
-                    className="px-4 pb-4 border-t border-border text-sm text-muted space-y-4"
+                    className="px-4 pb-4 border-t border-border text-sm space-y-4"
                   >
                     <div className="pt-3">
-                      <div className="flex gap-2 items-start bg-primary/5 border border-primary/20 rounded-lg px-3 py-2 mb-3">
+                      <div className="flex gap-2 items-start bg-primary/10 border border-primary/30 rounded-lg px-3 py-2 mb-3">
                         <span
                           className="text-primary mt-0.5"
                           aria-hidden="true"
