@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const DASHBOARD_URL = process.env.DASHBOARD_URL || "https://courses.esdesigns.org";
-const COURSE_SLUG = process.env.COURSE_SLUG || "document-ally";
+const COURSE_SLUG = process.env.COURSE_SLUG || "syllabus-accessibility-converter";
 
 export function middleware(request: NextRequest) {
   const authCookie = request.cookies.get("docally-auth");
