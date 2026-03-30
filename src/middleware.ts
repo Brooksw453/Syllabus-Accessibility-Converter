@@ -6,15 +6,15 @@ export function middleware(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
 
-  // SSO endpoint is always public
-  if (path.startsWith("/auth")) {
+  // SSO and login endpoints are always public
+  if (path.startsWith("/auth") || path.startsWith("/login")) {
     return NextResponse.next();
   }
 
-  // Upload page and home page are publicly accessible (the tool is free)
-  // Auth is only required for admin routes
-  const isProtectedPage = path.startsWith("/admin");
+  // Protected pages: upload requires email login for usage tracking
+  const isProtectedPage = path.startsWith("/upload") || path.startsWith("/admin");
   const isProtectedApi =
+    path.startsWith("/api/process-syllabus") ||
     path.startsWith("/api/admin") ||
     path.startsWith("/api/user");
 
@@ -25,9 +25,8 @@ export function middleware(request: NextRequest) {
     if (isProtectedApi) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const DASHBOARD_URL = process.env.DASHBOARD_URL || "https://courses.esdesigns.org";
-    const COURSE_SLUG = process.env.COURSE_SLUG || "syllabus-accessibility-converter";
-    return NextResponse.redirect(`${DASHBOARD_URL}/courses/${COURSE_SLUG}`);
+    // Redirect to the app's own login page (not the course dashboard)
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
   return NextResponse.next();
@@ -35,8 +34,11 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/upload/:path*",
     "/admin/:path*",
+    "/login",
     "/auth/:path*",
+    "/api/process-syllabus",
     "/api/admin/:path*",
     "/api/user/:path*",
   ],

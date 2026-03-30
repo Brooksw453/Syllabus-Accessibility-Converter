@@ -1,6 +1,12 @@
 import { redirect } from "next/navigation";
+import { isAuthenticated } from "@/lib/auth";
 
 export default async function HomePage() {
-  // The tool is publicly accessible — send users directly to the upload page
-  redirect("/upload");
+  const authed = await isAuthenticated();
+
+  if (authed) {
+    redirect("/upload");
+  }
+
+  redirect("/login");
 }
