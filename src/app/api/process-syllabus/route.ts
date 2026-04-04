@@ -26,14 +26,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let body: { text: string; fileName?: string };
+  let body: {
+    text: string;
+    fileName?: string;
+    images?: { id: string; base64: string; contentType: string }[];
+  };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
-  const { text, fileName } = body;
+  const { text, fileName, images } = body;
   if (!text?.trim()) {
     return NextResponse.json(
       { error: "No text content provided." },
@@ -70,7 +74,30 @@ export async function POST(request: NextRequest) {
         messages: [
           {
             role: "user",
-            content: `Here is the document text to make ADA compliant:\n\n${text}`,
+            content:
+              images && images.length > 0
+                ? [
+                    {
+                      type: "text" as const,
+                      text: `Here is the document text to make ADA compliant:\n\n${text}`,
+                    },
+                    {
+                      type: "text" as const,
+                      text: `The document contains ${images.length} image(s) marked as ${images.map((i) => `[${i.id}]`).join(", ")}. Below are the actual images — examine each one to generate descriptive alt text.`,
+                    },
+                    ...images.flatMap((img) => [
+                      { type: "text" as const, text: `${img.id}:` },
+                      {
+                        type: "image" as const,
+                        source: {
+                          type: "base64" as const,
+                          media_type: img.contentType,
+                          data: img.base64,
+                        },
+                      },
+                    ]),
+                  ]
+                : `Here is the document text to make ADA compliant:\n\n${text}`,
           },
         ],
       }),

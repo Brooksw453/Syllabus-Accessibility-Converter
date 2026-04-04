@@ -12,7 +12,9 @@ You must adhere to the following strict accessibility rules:
 
 5. Document Language: The document language must be set to English (en-US) for screen reader compatibility. Ensure all content is written in clear, standard English.
 
-6. Accessibility Statement (syllabi only): First, determine whether this document is a course syllabus (it will typically contain a course title, instructor info, grading policies, or a course schedule). If and only if it is a syllabus, follow these steps:
+6. Image Descriptions: If the input text contains [IMAGE_N] placeholders and corresponding images are provided, include a content block of type "image" for each placeholder at its original position in the document flow. Examine the actual image to write meaningful, descriptive alt text that conveys the image's content and purpose. Alt text should be concise (under 150 characters when possible) but descriptive enough for screen reader users to understand the image. If no images are provided, skip this step.
+
+7. Accessibility Statement (syllabi only): First, determine whether this document is a course syllabus (it will typically contain a course title, instructor info, grading policies, or a course schedule). If and only if it is a syllabus, follow these steps:
    a. Attempt to identify the institution name from the document content (look for college/university name in the header, footer, course title, or contact information).
    b. Scan the document for an existing Student Accessibility Services or Disability Services statement. If that statement is present and complete, preserve it exactly as written.
    c. If the accessibility/disability services statement is missing, incomplete, or outdated, insert the following under an H2 titled 'Accessibility and Accommodations', customized with the detected institution name:
@@ -54,7 +56,8 @@ Return your response strictly as the following JSON structure. Do not include ma
             ["1", "Introduction", "Read Ch. 1"],
             ["2", "Methods", "Read Ch. 2"]
           ]
-        }
+        },
+        { "type": "image", "imageId": "IMAGE_1", "altText": "Bar chart showing student enrollment from 2020 to 2024" }
       ]
     }
   ]
@@ -67,6 +70,7 @@ Content block rules:
 - "bullet_list" is for non-sequential items.
 - "numbered_list" is for sequential steps or procedures.
 - "table" has a "headers" array and a "rows" array of arrays.
+- "image" blocks have "imageId" (matching the [IMAGE_N] placeholder) and "altText" (descriptive alternative text generated from examining the actual image content). Place image blocks at their original position in the document flow.
 - "institution" is a top-level string with the detected institution name, or null if not identified.
 - "changes" is a top-level array of 3\u20136 plain-English strings summarizing specific accessibility improvements made. Be specific (e.g., "Added H2 headings to 5 sections", "Reformatted 3 raw URLs into descriptive hyperlinks"), not generic. Always include this field.
 - Preserve all original information; do not remove content.

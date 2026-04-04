@@ -2,6 +2,7 @@ import {
   Document,
   Paragraph,
   TextRun,
+  ImageRun,
   ExternalHyperlink,
   HeadingLevel,
   AlignmentType,
@@ -11,6 +12,7 @@ import {
   TableCell,
   WidthType,
   BorderStyle,
+  ShadingType,
 } from "docx";
 
 interface TextSegment {
@@ -19,12 +21,14 @@ interface TextSegment {
 }
 
 interface ContentBlock {
-  type: "paragraph" | "bullet_list" | "numbered_list" | "table";
+  type: "paragraph" | "bullet_list" | "numbered_list" | "table" | "image";
   text?: string;
   segments?: TextSegment[];
   items?: string[];
   headers?: string[];
   rows?: string[][];
+  imageId?: string;
+  altText?: string;
 }
 
 interface Section {
@@ -33,15 +37,27 @@ interface Section {
   content: ContentBlock[];
 }
 
+export interface ImageData {
+  data: ArrayBuffer;
+  contentType: string;
+}
+
+export interface ImageDimensions {
+  width: number;
+  height: number;
+}
+
 export interface AccessibleDocument {
   title: string;
   institution?: string | null;
   sections: Section[];
   changes?: string[];
+  images?: Record<string, ImageData>;
 }
 
 function buildParagraphChildren(
-  block: ContentBlock
+  block: ContentBlock,
+  fontFamily: string
 ): (TextRun | ExternalHyperlink)[] {
   if (block.segments) {
     return block.segments.map((seg) => {
@@ -52,15 +68,16 @@ function buildParagraphChildren(
               text: seg.text,
               style: "Hyperlink",
               size: 24,
+              font: fontFamily,
             }),
           ],
           link: seg.link,
         });
       }
-      return new TextRun({ text: seg.text, size: 24 });
+      return new TextRun({ text: seg.text, size: 24, font: fontFamily });
     });
   }
-  return [new TextRun({ text: block.text || "", size: 24 })];
+  return [new TextRun({ text: block.text || "", size: 24, font: fontFamily })];
 }
 
 const tableBorder = {
@@ -76,18 +93,25 @@ const cellBorders = {
   right: tableBorder,
 };
 
+export type FontOption = "Calibri" | "Arial" | "Times New Roman";
+
 export async function generateAccessibleDocxBlob(
-  data: AccessibleDocument
+  data: AccessibleDocument,
+  fontFamily: FontOption = "Calibri",
+  imageDimensions?: Record<string, ImageDimensions>
 ): Promise<Blob> {
   const children: (Paragraph | Table)[] = [];
+
+  // 1.15 line spacing in twips (276 = 240 * 1.15)
+  const lineSpacing = { line: 276 };
 
   // Title (H1)
   children.push(
     new Paragraph({
-      text: data.title,
+      children: [new TextRun({ text: data.title, font: fontFamily })],
       heading: HeadingLevel.HEADING_1,
       alignment: AlignmentType.CENTER,
-      spacing: { after: 300 },
+      spacing: { after: 300, line: 276 },
     })
   );
 
@@ -130,9 +154,9 @@ export async function generateAccessibleDocxBlob(
 
     children.push(
       new Paragraph({
-        text: section.heading,
+        children: [new TextRun({ text: section.heading, font: fontFamily })],
         heading: headingLevel,
-        spacing: { before: 240, after: 120 },
+        spacing: { before: 240, after: 120, ...lineSpacing },
       })
     );
 
@@ -140,17 +164,17 @@ export async function generateAccessibleDocxBlob(
       if (block.type === "paragraph") {
         children.push(
           new Paragraph({
-            children: buildParagraphChildren(block),
-            spacing: { after: 120 },
+            children: buildParagraphChildren(block, fontFamily),
+            spacing: { after: 120, ...lineSpacing },
           })
         );
       } else if (block.type === "bullet_list" && block.items) {
         for (const item of block.items) {
           children.push(
             new Paragraph({
-              children: [new TextRun({ text: item, size: 24 })],
+              children: [new TextRun({ text: item, size: 24, font: fontFamily })],
               bullet: { level: 0 },
-              spacing: { after: 60 },
+              spacing: { after: 60, ...lineSpacing },
             })
           );
         }
@@ -160,13 +184,24 @@ export async function generateAccessibleDocxBlob(
         for (const item of block.items) {
           children.push(
             new Paragraph({
-              children: [new TextRun({ text: item, size: 24 })],
+              children: [new TextRun({ text: item, size: 24, font: fontFamily })],
               numbering: { reference: ref, level: 0 },
-              spacing: { after: 60 },
+              spacing: { after: 60, ...lineSpacing },
             })
           );
         }
       } else if (block.type === "table" && block.headers && block.rows) {
+        const headerShading = {
+          fill: "4472C4",
+          type: ShadingType.CLEAR,
+          color: "auto",
+        };
+        const altRowShading = {
+          fill: "F2F2F2",
+          type: ShadingType.CLEAR,
+          color: "auto",
+        };
+
         const headerRow = new TableRow({
           tableHeader: true,
           children: block.headers.map(
@@ -175,27 +210,29 @@ export async function generateAccessibleDocxBlob(
                 children: [
                   new Paragraph({
                     children: [
-                      new TextRun({ text: header, bold: true, size: 24 }),
+                      new TextRun({ text: header, bold: true, size: 24, font: fontFamily, color: "FFFFFF" }),
                     ],
                   }),
                 ],
                 borders: cellBorders,
+                shading: headerShading,
               })
           ),
         });
 
         const dataRows = block.rows.map(
-          (row) =>
+          (row, rowIndex) =>
             new TableRow({
               children: row.map(
                 (cell) =>
                   new TableCell({
                     children: [
                       new Paragraph({
-                        children: [new TextRun({ text: cell, size: 24 })],
+                        children: [new TextRun({ text: cell, size: 24, font: fontFamily })],
                       }),
                     ],
                     borders: cellBorders,
+                    ...(rowIndex % 2 === 1 ? { shading: altRowShading } : {}),
                   })
               ),
             })
@@ -209,6 +246,34 @@ export async function generateAccessibleDocxBlob(
         );
 
         children.push(new Paragraph({ spacing: { after: 120 } }));
+      } else if (block.type === "image" && block.imageId && data.images?.[block.imageId]) {
+        const img = data.images[block.imageId];
+        const dims = imageDimensions?.[block.imageId] ?? { width: 576, height: 432 };
+        const typeMap: Record<string, "jpg" | "png" | "gif" | "bmp"> = {
+          "image/jpeg": "jpg",
+          "image/png": "png",
+          "image/gif": "gif",
+          "image/bmp": "bmp",
+        };
+        const imgType = typeMap[img.contentType] ?? "png";
+
+        children.push(
+          new Paragraph({
+            children: [
+              new ImageRun({
+                type: imgType,
+                data: img.data,
+                transformation: dims,
+                altText: {
+                  name: block.imageId,
+                  description: block.altText || "Image",
+                  title: block.altText || "Image",
+                },
+              }),
+            ],
+            spacing: { after: 120, ...lineSpacing },
+          })
+        );
       }
     }
   }
@@ -222,6 +287,7 @@ export async function generateAccessibleDocxBlob(
           size: 18,
           color: "595959",
           italics: true,
+          font: fontFamily,
         }),
       ],
       spacing: { before: 400 },
@@ -230,6 +296,10 @@ export async function generateAccessibleDocxBlob(
   );
 
   const doc = new Document({
+    title: data.title,
+    creator: "Document Ally",
+    description: "Accessible document generated by Document Ally - WCAG 2.2 compliant",
+    subject: data.institution || undefined,
     numbering: {
       config: numberingConfigs,
     },
@@ -240,6 +310,11 @@ export async function generateAccessibleDocxBlob(
             language: {
               value: "en-US",
             },
+            font: fontFamily,
+            size: 24,
+          },
+          paragraph: {
+            spacing: { line: 276 },
           },
         },
       },

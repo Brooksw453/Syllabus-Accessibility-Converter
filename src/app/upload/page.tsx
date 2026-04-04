@@ -7,6 +7,9 @@ import mammoth from "mammoth";
 import {
   generateAccessibleDocxBlob,
   type AccessibleDocument,
+  type FontOption,
+  type ImageData,
+  type ImageDimensions,
 } from "@/lib/generate-docx-client";
 
 const RAINBOW_CHECKS = [
@@ -66,6 +69,44 @@ function FloatingThemeToggle() {
   );
 }
 
+interface ExtractedImage {
+  id: string;
+  base64: string;
+  contentType: string;
+  originalArrayBuffer: ArrayBuffer;
+  width: number;
+  height: number;
+}
+
+/** Compress an image for API transmission using browser canvas */
+async function compressImageForApi(
+  base64: string,
+  contentType: string,
+  maxDimension = 1024,
+  quality = 0.7
+): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > maxDimension || height > maxDimension) {
+        const scale = maxDimension / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0, width, height);
+      const dataUrl = canvas.toDataURL("image/jpeg", quality);
+      resolve(dataUrl.split(",")[1]);
+    };
+    img.onerror = () => resolve(base64); // fallback to original
+    img.src = `data:${contentType};base64,${base64}`;
+  });
+}
+
 type Status =
   | "idle"
   | "extracting"
@@ -89,6 +130,7 @@ function UploadPageInner() {
   const [learnOpen, setLearnOpen] = useState(false);
   const [changes, setChanges] = useState<string[]>([]);
   const [pendingBlob, setPendingBlob] = useState<Blob | null>(null);
+  const [pendingDocData, setPendingDocData] = useState<AccessibleDocument | null>(null);
   const [pendingDownloadName, setPendingDownloadName] = useState("");
   const [batchTotal, setBatchTotal] = useState(0);
   const [batchIndex, setBatchIndex] = useState(0);
@@ -96,6 +138,7 @@ function UploadPageInner() {
     { name: string; ok: boolean }[]
   >([]);
   const [institution, setInstitution] = useState<string | null>(null);
+  const [selectedFont, setSelectedFont] = useState<FontOption>("Calibri");
   const [userStatus, setUserStatus] = useState<UserStatus | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -156,19 +199,66 @@ function UploadPageInner() {
   }
 
   async function processOneFile(
-    file: File
+    file: File,
+    font?: FontOption
   ): Promise<{
     blob: Blob;
     downloadName: string;
     changes: string[];
     institution: string | null;
+    documentData: AccessibleDocument;
   }> {
     const arrayBuffer = await file.arrayBuffer();
     let extractedText: string;
+    const extractedImages: ExtractedImage[] = [];
 
     if (file.name.toLowerCase().endsWith(".docx")) {
-      const result = await mammoth.extractRawText({ arrayBuffer });
-      extractedText = result.value;
+      let imageCounter = 0;
+      const result = await mammoth.convertToHtml(
+        { arrayBuffer },
+        {
+          convertImage: mammoth.images.imgElement(async (image) => {
+            imageCounter++;
+            const id = `IMAGE_${imageCounter}`;
+            const contentType = image.contentType;
+            const base64 = await image.readAsBase64String();
+            const ab = await image.readAsArrayBuffer();
+            // Get natural dimensions
+            let width = 576;
+            let height = 432;
+            try {
+              const bitmap = await createImageBitmap(
+                new Blob([ab], { type: contentType })
+              );
+              width = bitmap.width;
+              height = bitmap.height;
+              bitmap.close();
+            } catch {
+              // use defaults
+            }
+            extractedImages.push({ id, base64, contentType, originalArrayBuffer: ab, width, height });
+            return { src: `__PLACEHOLDER_${id}__` };
+          }),
+        }
+      );
+      // Convert HTML to plain text with image placeholders
+      let html = result.value;
+      html = html.replace(
+        /<img[^>]*src="__PLACEHOLDER_(IMAGE_\d+)__"[^>]*>/gi,
+        "[$1]"
+      );
+      html = html.replace(/<br\s*\/?>/gi, "\n");
+      html = html.replace(/<\/p>/gi, "\n\n");
+      html = html.replace(/<\/?(h[1-6]|div|li|tr|td|th)[^>]*>/gi, "\n");
+      html = html.replace(/<[^>]+>/g, "");
+      html = html.replace(/&nbsp;/g, " ");
+      html = html.replace(/&amp;/g, "&");
+      html = html.replace(/&lt;/g, "<");
+      html = html.replace(/&gt;/g, ">");
+      html = html.replace(/&quot;/g, '"');
+      html = html.replace(/&#39;/g, "'");
+      html = html.replace(/\n{3,}/g, "\n\n");
+      extractedText = html.trim();
     } else if (file.name.toLowerCase().endsWith(".pdf")) {
       const pdfjsLib = await import("pdfjs-dist");
       pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
@@ -193,6 +283,25 @@ function UploadPageInner() {
       throw new Error("Could not extract any text from the file.");
     }
 
+    // Compress images for API transmission
+    let apiImages: { id: string; base64: string; contentType: string }[] | undefined;
+    if (extractedImages.length > 0) {
+      const compressed = await Promise.all(
+        extractedImages.map(async (img) => ({
+          id: img.id,
+          base64: await compressImageForApi(img.base64, img.contentType),
+          contentType: "image/jpeg",
+        }))
+      );
+      // Check total payload size (4MB safe limit for Vercel Hobby)
+      const totalSize =
+        extractedText.length +
+        compressed.reduce((sum, img) => sum + img.base64.length, 0);
+      if (totalSize < 4_000_000) {
+        apiImages = compressed;
+      }
+    }
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 120_000);
 
@@ -201,7 +310,11 @@ function UploadPageInner() {
       const res = await fetch("/api/process-syllabus", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: extractedText, fileName: file.name }),
+        body: JSON.stringify({
+          text: extractedText,
+          fileName: file.name,
+          images: apiImages,
+        }),
         signal: controller.signal,
       });
 
@@ -293,7 +406,29 @@ function UploadPageInner() {
       );
     }
 
-    const blob = await generateAccessibleDocxBlob(documentData);
+    // Build images map and dimensions for DOCX generation
+    if (extractedImages.length > 0) {
+      const imagesMap: Record<string, ImageData> = {};
+      const dimsMap: Record<string, ImageDimensions> = {};
+      const MAX_WIDTH = 576; // 6 inches at 96 DPI
+      for (const img of extractedImages) {
+        imagesMap[img.id] = { data: img.originalArrayBuffer, contentType: img.contentType };
+        let w = img.width;
+        let h = img.height;
+        if (w > MAX_WIDTH) {
+          const scale = MAX_WIDTH / w;
+          w = MAX_WIDTH;
+          h = Math.round(h * scale);
+        }
+        dimsMap[img.id] = { width: w, height: h };
+      }
+      documentData.images = imagesMap;
+      // Store dimensions for blob generation
+      (documentData as AccessibleDocument & { _dims?: Record<string, ImageDimensions> })._dims = dimsMap;
+    }
+
+    const dims = (documentData as AccessibleDocument & { _dims?: Record<string, ImageDimensions> })._dims;
+    const blob = await generateAccessibleDocxBlob(documentData, font, dims);
     const baseName = file.name.replace(/\.[^/.]+$/, "");
     const safeName = baseName.replace(/\s+/g, "-");
     return {
@@ -301,6 +436,7 @@ function UploadPageInner() {
       downloadName: `${safeName}(accessible).docx`,
       changes: documentData.changes ?? [],
       institution: documentData.institution ?? null,
+      documentData,
     };
   }
 
@@ -325,7 +461,7 @@ function UploadPageInner() {
 
         try {
           setStatus("processing");
-          const { blob, downloadName } = await processOneFile(file);
+          const { blob, downloadName } = await processOneFile(file, selectedFont);
           setStatus("generating");
           triggerDownload(blob, downloadName);
           results.push({ name: file.name, ok: true });
@@ -348,11 +484,13 @@ function UploadPageInner() {
           downloadName,
           changes: fileChanges,
           institution: detectedInstitution,
-        } = await processOneFile(file);
+          documentData,
+        } = await processOneFile(file, selectedFont);
         setStatus("generating");
         setChanges(fileChanges);
         setInstitution(detectedInstitution);
         setPendingBlob(blob);
+        setPendingDocData(documentData);
         setPendingDownloadName(downloadName);
         setStatus("preview");
       } catch (err) {
@@ -374,10 +512,18 @@ function UploadPageInner() {
     URL.revokeObjectURL(url);
   }
 
-  function handleDownload() {
-    if (pendingBlob && pendingDownloadName) {
-      triggerDownload(pendingBlob, pendingDownloadName);
+  async function handleDownload() {
+    if (pendingDownloadName && (pendingBlob || pendingDocData)) {
+      // Regenerate blob with the currently selected font
+      const dims = pendingDocData
+        ? (pendingDocData as AccessibleDocument & { _dims?: Record<string, ImageDimensions> })._dims
+        : undefined;
+      const blob = pendingDocData
+        ? await generateAccessibleDocxBlob(pendingDocData, selectedFont, dims)
+        : pendingBlob!;
+      triggerDownload(blob, pendingDownloadName);
       setPendingBlob(null);
+      setPendingDocData(null);
       setPendingDownloadName("");
       setStatus("done");
     }
@@ -417,7 +563,7 @@ function UploadPageInner() {
     batchTotal > 1
       ? `Processing ${batchIndex + 1} of ${batchTotal}: ${fileName}...`
       : status === "extracting"
-        ? "Extracting text from document..."
+        ? "Extracting text and images from document..."
         : status === "generating"
           ? "Generating accessible document..."
           : "Processing Accessibility Updates...";
@@ -617,6 +763,26 @@ function UploadPageInner() {
                       </li>
                     )}
                   </ul>
+                  <div className="mb-3">
+                    <label
+                      htmlFor="font-select"
+                      className="block text-xs font-medium text-muted mb-1"
+                    >
+                      Document font
+                    </label>
+                    <select
+                      id="font-select"
+                      value={selectedFont}
+                      onChange={(e) =>
+                        setSelectedFont(e.target.value as FontOption)
+                      }
+                      className="w-full rounded-lg border border-primary/30 bg-surface px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary"
+                    >
+                      <option value="Calibri">Calibri (recommended)</option>
+                      <option value="Arial">Arial</option>
+                      <option value="Times New Roman">Times New Roman</option>
+                    </select>
+                  </div>
                   <button
                     type="button"
                     onClick={handleDownload}
