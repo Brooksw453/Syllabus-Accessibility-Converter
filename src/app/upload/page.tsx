@@ -904,8 +904,10 @@ function UploadPageInner() {
                           "Enforces semantic heading hierarchy (H1\u2192H2\u2192H3)",
                           "Rewrites vague links into descriptive hyperlinks",
                           "Converts content into proper numbered and bulleted lists",
-                          "Formats tables with proper header rows for screen readers",
-                          "Sets document language metadata for assistive technology",
+                          "Formats tables with color-coded headers and alternating rows",
+                          "Preserves images and generates AI-powered alt text descriptions",
+                          "Sets document metadata (title, language, creator) for assistive technology",
+                          "Choose output font: Calibri, Arial, or Times New Roman",
                           "Inserts missing accessibility accommodation statements for syllabi",
                           "Preserves all original content \u2014 restructures without removing",
                         ].map((cap, i) => (
