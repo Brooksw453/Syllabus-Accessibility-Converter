@@ -37,7 +37,7 @@ interface Section {
   content: ContentBlock[];
 }
 
-export interface ImageData {
+export interface DocImageData {
   data: ArrayBuffer;
   contentType: string;
 }
@@ -52,7 +52,7 @@ export interface AccessibleDocument {
   institution?: string | null;
   sections: Section[];
   changes?: string[];
-  images?: Record<string, ImageData>;
+  images?: Record<string, DocImageData>;
 }
 
 function buildParagraphChildren(

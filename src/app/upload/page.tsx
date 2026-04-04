@@ -8,7 +8,7 @@ import {
   generateAccessibleDocxBlob,
   type AccessibleDocument,
   type FontOption,
-  type ImageData,
+  type DocImageData,
   type ImageDimensions,
 } from "@/lib/generate-docx-client";
 
@@ -264,15 +264,105 @@ function UploadPageInner() {
       pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       const pages: string[] = [];
+
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
-        pages.push(
-          content.items
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            .map((item: any) => (item.str as string) || "")
-            .join(" ")
-        );
+        const pageText = content.items
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .map((item: any) => (item.str as string) || "")
+          .join(" ");
+
+        // Extract images from this page
+        const pageImagePlaceholders: string[] = [];
+        try {
+          const ops = await page.getOperatorList();
+          const paintImageOps = new Set([
+            pdfjsLib.OPS.paintImageXObject,
+            pdfjsLib.OPS.paintImageXObjectRepeat,
+          ]);
+          const seenImages = new Set<string>();
+
+          for (let j = 0; j < ops.fnArray.length; j++) {
+            if (!paintImageOps.has(ops.fnArray[j])) continue;
+            const imgName = ops.argsArray[j]?.[0] as string;
+            if (!imgName || seenImages.has(imgName)) continue;
+            seenImages.add(imgName);
+
+            try {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const imgObj: any = page.objs.get(imgName);
+              if (!imgObj?.data || !imgObj.width || !imgObj.height) continue;
+
+              // Skip very small images (icons, bullets, decorations)
+              if (imgObj.width < 50 || imgObj.height < 50) continue;
+
+              const id = `IMAGE_${extractedImages.length + 1}`;
+
+              // Draw raw pixel data to canvas and export as PNG
+              const canvas = document.createElement("canvas");
+              canvas.width = imgObj.width;
+              canvas.height = imgObj.height;
+              const ctx = canvas.getContext("2d")!;
+
+              // imgObj.data is a Uint8ClampedArray of RGBA or RGB pixels
+              let imageData: ImageData;
+              if (imgObj.data.length === imgObj.width * imgObj.height * 4) {
+                // RGBA
+                imageData = new ImageData(
+                  new Uint8ClampedArray(imgObj.data),
+                  imgObj.width,
+                  imgObj.height
+                );
+              } else if (imgObj.data.length === imgObj.width * imgObj.height * 3) {
+                // RGB — convert to RGBA
+                const rgba = new Uint8ClampedArray(imgObj.width * imgObj.height * 4);
+                for (let p = 0, q = 0; p < imgObj.data.length; p += 3, q += 4) {
+                  rgba[q] = imgObj.data[p];
+                  rgba[q + 1] = imgObj.data[p + 1];
+                  rgba[q + 2] = imgObj.data[p + 2];
+                  rgba[q + 3] = 255;
+                }
+                imageData = new ImageData(rgba, imgObj.width, imgObj.height);
+              } else {
+                continue; // unknown format
+              }
+
+              ctx.putImageData(imageData, 0, 0);
+              const dataUrl = canvas.toDataURL("image/png");
+              const base64 = dataUrl.split(",")[1];
+
+              // Convert base64 to ArrayBuffer for DOCX embedding
+              const binaryString = atob(base64);
+              const bytes = new Uint8Array(binaryString.length);
+              for (let b = 0; b < binaryString.length; b++) {
+                bytes[b] = binaryString.charCodeAt(b);
+              }
+              const ab = bytes.buffer;
+
+              extractedImages.push({
+                id,
+                base64,
+                contentType: "image/png",
+                originalArrayBuffer: ab,
+                width: imgObj.width,
+                height: imgObj.height,
+              });
+              pageImagePlaceholders.push(`[${id}]`);
+            } catch {
+              // Skip images that fail to extract
+            }
+          }
+        } catch {
+          // getOperatorList failed — continue with text only
+        }
+
+        // Append image placeholders after page text
+        if (pageImagePlaceholders.length > 0) {
+          pages.push(pageText + "\n\n" + pageImagePlaceholders.join("\n"));
+        } else {
+          pages.push(pageText);
+        }
       }
       extractedText = pages.join("\n\n");
     } else {
@@ -408,7 +498,7 @@ function UploadPageInner() {
 
     // Build images map and dimensions for DOCX generation
     if (extractedImages.length > 0) {
-      const imagesMap: Record<string, ImageData> = {};
+      const imagesMap: Record<string, DocImageData> = {};
       const dimsMap: Record<string, ImageDimensions> = {};
       const MAX_WIDTH = 576; // 6 inches at 96 DPI
       for (const img of extractedImages) {
