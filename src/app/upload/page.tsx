@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState, Suspense, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useDropzone } from "react-dropzone";
 import mammoth from "mammoth";
 import {
@@ -121,7 +121,14 @@ interface UserStatus {
   admin: boolean;
   remaining: number | null;
   resetInSeconds: number | null;
+  paidCredits: number | null;
 }
+
+const CREDIT_TIERS = [
+  { id: "starter", credits: 20, price: "$4.99", perCredit: "$0.25" },
+  { id: "popular", credits: 50, price: "$9.99", perCredit: "$0.20", badge: "Most Popular" },
+  { id: "value", credits: 100, price: "$14.99", perCredit: "$0.15", badge: "Best Value" },
+] as const;
 
 function UploadPageInner() {
   const [status, setStatus] = useState<Status>("idle");
@@ -145,8 +152,12 @@ function UploadPageInner() {
   const [feedbackRating, setFeedbackRating] = useState(0);
   const [feedbackComment, setFeedbackComment] = useState("");
   const [feedbackStatus, setFeedbackStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [purchaseOpen, setPurchaseOpen] = useState(false);
+  const [purchaseLoading, setPurchaseLoading] = useState<string | null>(null);
+  const [purchaseSuccess, setPurchaseSuccess] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   // Move focus to preview panel when it appears
   useEffect(() => {
@@ -223,6 +234,38 @@ function UploadPageInner() {
     setFeedbackRating(0);
     setFeedbackComment("");
     setFeedbackStatus("idle");
+  }
+
+  // Detect post-purchase return from Stripe
+  useEffect(() => {
+    const purchased = searchParams.get("purchased");
+    if (purchased) {
+      setPurchaseSuccess(true);
+      refreshUserStatus();
+      // Clean up URL param
+      window.history.replaceState({}, "", "/upload");
+      const timer = setTimeout(() => setPurchaseSuccess(false), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [searchParams]);
+
+  async function handlePurchase(tier: string) {
+    setPurchaseLoading(tier);
+    try {
+      const res = await fetch("/api/credits/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tier }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setPurchaseLoading(null);
+      }
+    } catch {
+      setPurchaseLoading(null);
+    }
   }
 
   async function processOneFile(
@@ -436,6 +479,10 @@ function UploadPageInner() {
       });
 
       if (!res.ok) {
+        if (res.status === 429) {
+          setPurchaseOpen(true);
+          throw new Error("rateLimited");
+        }
         const contentType = res.headers.get("content-type") || "";
         if (contentType.includes("application/json")) {
           const data = await res.json();
@@ -717,7 +764,7 @@ function UploadPageInner() {
             <div className="flex items-center gap-2 sm:gap-3">
               {userStatus.remaining != null && !userStatus.admin && (
                 <span className="opacity-80 hidden sm:inline">
-                  {userStatus.remaining} remaining
+                  {userStatus.remaining} free{userStatus.paidCredits ? ` + ${userStatus.paidCredits} purchased` : ""}
                   {countdown != null && countdown > 0 && (
                     <span className="ml-1 text-amber-300">
                       ({formatCountdown(countdown)})
@@ -727,8 +774,17 @@ function UploadPageInner() {
               )}
               {userStatus.remaining != null && !userStatus.admin && (
                 <span className="opacity-80 sm:hidden">
-                  {userStatus.remaining} left
+                  {userStatus.remaining}{userStatus.paidCredits ? `+${userStatus.paidCredits}` : ""} left
                 </span>
+              )}
+              {!userStatus.admin && (
+                <button
+                  type="button"
+                  onClick={() => setPurchaseOpen(true)}
+                  className="text-emerald-300 hover:text-emerald-200 transition-colors text-[11px] font-medium underline underline-offset-2"
+                >
+                  Buy More
+                </button>
               )}
               {userStatus.admin && (
                 <span className="text-amber-300 font-semibold">Unlimited</span>
@@ -844,6 +900,75 @@ function UploadPageInner() {
               </>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Purchase credits modal */}
+      {purchaseOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setPurchaseOpen(false); }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Purchase conversion credits"
+        >
+          <div className="bg-surface-card dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-lg p-6">
+            <h2 className="text-lg font-semibold text-text mb-1">Need More Conversions?</h2>
+            <p className="text-sm text-muted mb-5">
+              You&apos;ve used your free conversions this hour. Purchase credits that never expire.
+              {countdown != null && countdown > 0 && (
+                <span className="block mt-1">Or wait {formatCountdown(countdown)} for free credits to reset.</span>
+              )}
+            </p>
+
+            <div className="grid grid-cols-3 gap-3">
+              {CREDIT_TIERS.map((tier) => (
+                <div
+                  key={tier.id}
+                  className={`relative border rounded-xl p-4 text-center transition-all ${
+                    "badge" in tier
+                      ? "border-primary bg-primary/5 dark:bg-primary/10"
+                      : "border-border"
+                  }`}
+                >
+                  {"badge" in tier && tier.badge && (
+                    <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-primary text-white text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">
+                      {tier.badge}
+                    </span>
+                  )}
+                  <p className="text-2xl font-bold text-text">{tier.credits}</p>
+                  <p className="text-xs text-muted mb-1">credits</p>
+                  <p className="text-lg font-bold text-primary mb-0.5">{tier.price}</p>
+                  <p className="text-[10px] text-muted mb-3">{tier.perCredit}/each</p>
+                  <button
+                    type="button"
+                    onClick={() => handlePurchase(tier.id)}
+                    disabled={purchaseLoading !== null}
+                    className="w-full bg-primary text-white hover:bg-primary-dark py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                  >
+                    {purchaseLoading === tier.id ? "Redirecting..." : "Buy Now"}
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end mt-4">
+              <button
+                type="button"
+                onClick={() => setPurchaseOpen(false)}
+                className="px-4 py-2 text-sm text-muted hover:text-text transition-colors rounded-lg"
+              >
+                Not now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Purchase success toast */}
+      {purchaseSuccess && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-emerald-600 text-white px-5 py-2.5 rounded-xl shadow-lg text-sm font-medium animate-fade-in">
+          Credits added successfully!
         </div>
       )}
 
@@ -1048,7 +1173,7 @@ function UploadPageInner() {
                 </div>
               )}
 
-              {status === "error" && (
+              {status === "error" && error !== "rateLimited" && (
                 <div
                   role="alert"
                   className="mt-6 text-center bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/50 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg"

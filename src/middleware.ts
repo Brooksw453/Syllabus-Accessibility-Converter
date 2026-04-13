@@ -6,8 +6,12 @@ export function middleware(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
 
-  // SSO and login endpoints are always public
-  if (path.startsWith("/auth") || path.startsWith("/login")) {
+  // Public endpoints: SSO, login, and Stripe webhook
+  if (
+    path.startsWith("/auth") ||
+    path.startsWith("/login") ||
+    path === "/api/credits/webhook"
+  ) {
     return NextResponse.next();
   }
 
@@ -17,7 +21,8 @@ export function middleware(request: NextRequest) {
     path.startsWith("/api/process-syllabus") ||
     path.startsWith("/api/admin") ||
     path.startsWith("/api/user") ||
-    path.startsWith("/api/feedback");
+    path.startsWith("/api/feedback") ||
+    path.startsWith("/api/credits/checkout");
 
   if (isProtectedPage || isProtectedApi) {
     if (isAuthed) {
@@ -43,5 +48,6 @@ export const config = {
     "/api/admin/:path*",
     "/api/user/:path*",
     "/api/feedback",
+    "/api/credits/:path*",
   ],
 };

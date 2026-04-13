@@ -22,6 +22,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-dropzone": "^15.0.0",
+    "stripe": "^22.0.1",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

@@ -11,12 +11,13 @@ export async function GET(request: NextRequest) {
 
   const email = request.cookies.get(getEmailCookieName())?.value ?? "";
   const admin = isAdmin(email);
-  const { remaining, resetInSeconds } = await checkRateLimit(email);
+  const { remaining, resetInSeconds, paidCredits } = await checkRateLimit(email);
 
   return NextResponse.json({
     email,
     admin,
     remaining: admin ? null : remaining,
     resetInSeconds: admin ? null : resetInSeconds,
+    paidCredits: admin ? null : paidCredits,
   });
 }

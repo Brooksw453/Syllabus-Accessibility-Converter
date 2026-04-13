@@ -1,4 +1,5 @@
 import { isAdmin } from "./admin";
+import { getCredits, deductCredit } from "./credits";
 
 const WINDOW_MS = 60 * 60 * 1000; // 1 hour
 const MAX_PER_WINDOW = 5;
@@ -44,6 +45,13 @@ function memCheck(email: string): {
   };
 }
 
+export interface RateLimitResult {
+  allowed: boolean;
+  remaining: number;
+  resetInSeconds: number;
+  paidCredits: number;
+}
+
 function memRecord(email: string, fileName: string): void {
   const now = Date.now();
   const cutoff = now - WINDOW_MS;
@@ -63,28 +71,37 @@ function memGetLog(): { email: string; fileName: string; timestamp: string }[] {
 // Public API (async, works with both KV and in-memory)
 // ---------------------------------------------------------------------------
 
-export async function checkRateLimit(email: string): Promise<{
-  allowed: boolean;
-  remaining: number;
-  resetInSeconds: number;
-}> {
+export async function checkRateLimit(email: string): Promise<RateLimitResult> {
   if (isAdmin(email)) {
-    return { allowed: true, remaining: 999, resetInSeconds: 0 };
+    return { allowed: true, remaining: 999, resetInSeconds: 0, paidCredits: 0 };
   }
 
+  const paidCredits = await getCredits(email);
+
   const kv = await getKv();
-  if (!kv) return memCheck(email);
+  if (!kv) {
+    const base = memCheck(email);
+    // If free credits exhausted but paid credits available, still allow
+    if (!base.allowed && paidCredits > 0) {
+      return { ...base, allowed: true, paidCredits };
+    }
+    return { ...base, paidCredits };
+  }
 
   const hourBucket = Math.floor(Date.now() / WINDOW_MS);
   const key = `ratelimit:${email}:${hourBucket}`;
   const count = (await kv.get<number>(key)) ?? 0;
 
+  const freeRemaining = Math.max(0, MAX_PER_WINDOW - count);
+  const allowed = freeRemaining > 0 || paidCredits > 0;
+
   return {
-    allowed: count < MAX_PER_WINDOW,
-    remaining: Math.max(0, MAX_PER_WINDOW - count),
+    allowed,
+    remaining: freeRemaining,
     resetInSeconds: Math.ceil(
       ((hourBucket + 1) * WINDOW_MS - Date.now()) / 1000
     ),
+    paidCredits,
   };
 }
 
@@ -95,6 +112,14 @@ export async function recordUsage(
   const kv = await getKv();
 
   if (!kv) {
+    // Check if free credits were already exhausted before this conversion
+    const now = Date.now();
+    const cutoff = now - WINDOW_MS;
+    const timestamps = (memUsage.get(email) ?? []).filter((t) => t > cutoff);
+    if (timestamps.length >= MAX_PER_WINDOW) {
+      // Free credits exhausted — deduct from paid credits
+      await deductCredit(email);
+    }
     memRecord(email, fileName);
     return;
   }
@@ -102,8 +127,16 @@ export async function recordUsage(
   const hourBucket = Math.floor(Date.now() / WINDOW_MS);
   const key = `ratelimit:${email}:${hourBucket}`;
 
+  // Check current count BEFORE incrementing to decide credit source
+  const countBefore = (await kv.get<number>(key)) ?? 0;
+
   await kv.incr(key);
   await kv.expire(key, 3600);
+
+  // If free credits were already used up, deduct a paid credit
+  if (countBefore >= MAX_PER_WINDOW) {
+    await deductCredit(email);
+  }
 
   const event = JSON.stringify({
     email,
