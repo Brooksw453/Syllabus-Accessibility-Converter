@@ -11,8 +11,16 @@ interface UsageEvent {
   timestamp: string;
 }
 
+interface FeedbackEntry {
+  email: string;
+  rating: number;
+  comment: string;
+  timestamp: string;
+}
+
 export default function AdminPage() {
   const [log, setLog] = useState<UsageEvent[]>([]);
+  const [feedback, setFeedback] = useState<FeedbackEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const router = useRouter();
@@ -20,15 +28,23 @@ export default function AdminPage() {
   useEffect(() => {
     document.title = "Admin Dashboard \u2014 Document Ally";
 
-    fetch("/api/admin/usage")
-      .then(async (res) => {
+    Promise.all([
+      fetch("/api/admin/usage").then(async (res) => {
         if (res.status === 401 || res.status === 403) {
           router.push("/");
-          return;
+          return null;
         }
         if (!res.ok) throw new Error("Failed to load usage data");
-        const data = await res.json();
-        setLog(data.log ?? []);
+        return res.json();
+      }),
+      fetch("/api/admin/feedback").then(async (res) => {
+        if (!res.ok) return { feedback: [] };
+        return res.json();
+      }),
+    ])
+      .then(([usageData, feedbackData]) => {
+        if (usageData) setLog(usageData.log ?? []);
+        if (feedbackData) setFeedback(feedbackData.feedback ?? []);
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -36,6 +52,10 @@ export default function AdminPage() {
 
   const uniqueUsers = new Set(log.map((e) => e.email)).size;
   const totalConversions = log.length;
+  const avgRating =
+    feedback.length > 0
+      ? (feedback.reduce((sum, f) => sum + f.rating, 0) / feedback.length).toFixed(1)
+      : "—";
 
   function handleExportExcel() {
     const rows = log.map((event) => ({
@@ -44,7 +64,6 @@ export default function AdminPage() {
       Timestamp: new Date(event.timestamp).toLocaleString(),
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
-    // Auto-size columns
     ws["!cols"] = [
       { wch: 30 }, // Email
       { wch: 40 }, // File
@@ -52,6 +71,24 @@ export default function AdminPage() {
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Usage History");
+
+    if (feedback.length > 0) {
+      const fbRows = feedback.map((f) => ({
+        Email: f.email,
+        Rating: f.rating,
+        Comment: f.comment,
+        Timestamp: new Date(f.timestamp).toLocaleString(),
+      }));
+      const fbWs = XLSX.utils.json_to_sheet(fbRows);
+      fbWs["!cols"] = [
+        { wch: 30 }, // Email
+        { wch: 8 },  // Rating
+        { wch: 50 }, // Comment
+        { wch: 22 }, // Timestamp
+      ];
+      XLSX.utils.book_append_sheet(wb, fbWs, "Feedback");
+    }
+
     XLSX.writeFile(wb, `document-ally-usage-${new Date().toISOString().slice(0, 10)}.xlsx`);
   }
 
@@ -97,7 +134,7 @@ export default function AdminPage() {
           </div>
 
           {/* Stats cards */}
-          <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
             <div className="card-gradient-border card-shadow">
               <div className="card-inner p-5 text-center">
                 <p className="text-3xl font-bold text-primary">
@@ -112,6 +149,22 @@ export default function AdminPage() {
                   {uniqueUsers}
                 </p>
                 <p className="text-sm text-muted mt-1">Unique Users</p>
+              </div>
+            </div>
+            <div className="card-gradient-border card-shadow">
+              <div className="card-inner p-5 text-center">
+                <p className="text-3xl font-bold text-primary">
+                  {feedback.length}
+                </p>
+                <p className="text-sm text-muted mt-1">Feedback Received</p>
+              </div>
+            </div>
+            <div className="card-gradient-border card-shadow">
+              <div className="card-inner p-5 text-center">
+                <p className="text-3xl font-bold text-amber-500">
+                  {avgRating}
+                </p>
+                <p className="text-sm text-muted mt-1">Avg Rating</p>
               </div>
             </div>
           </div>
@@ -200,6 +253,64 @@ export default function AdminPage() {
                           </td>
                           <td className="py-2.5 text-muted whitespace-nowrap">
                             {new Date(event.timestamp).toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Feedback table */}
+          <div className="card-gradient-border card-shadow mt-6">
+            <div className="card-inner p-6">
+              <h2 className="text-lg font-semibold text-primary mb-4">
+                User Feedback
+              </h2>
+
+              {!loading && feedback.length === 0 && (
+                <p className="text-muted text-sm text-center py-8">
+                  No feedback yet. Responses will appear here as users submit them.
+                </p>
+              )}
+
+              {!loading && feedback.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th scope="col" className="text-left py-2 pr-4 font-semibold text-text">
+                          Email
+                        </th>
+                        <th scope="col" className="text-left py-2 pr-4 font-semibold text-text">
+                          Rating
+                        </th>
+                        <th scope="col" className="text-left py-2 pr-4 font-semibold text-text">
+                          Comment
+                        </th>
+                        <th scope="col" className="text-left py-2 font-semibold text-text">
+                          Time
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {feedback.map((entry, i) => (
+                        <tr
+                          key={i}
+                          className="border-b border-border/50 last:border-0"
+                        >
+                          <td className="py-2.5 pr-4 text-text">{entry.email}</td>
+                          <td className="py-2.5 pr-4 text-amber-500 whitespace-nowrap">
+                            {"\u2605".repeat(entry.rating)}
+                            {"\u2606".repeat(5 - entry.rating)}
+                          </td>
+                          <td className="py-2.5 pr-4 text-muted max-w-[300px]">
+                            {entry.comment || <span className="italic opacity-60">No comment</span>}
+                          </td>
+                          <td className="py-2.5 text-muted whitespace-nowrap">
+                            {new Date(entry.timestamp).toLocaleString()}
                           </td>
                         </tr>
                       ))}

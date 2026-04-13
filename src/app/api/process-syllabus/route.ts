@@ -13,12 +13,12 @@ export async function POST(request: NextRequest) {
   const userEmail =
     request.cookies.get(getEmailCookieName())?.value ?? "unknown";
 
-  // Rate limit: 10 documents per hour per email (admins are unlimited)
+  // Rate limit: 5 documents per hour per email (admins are unlimited)
   const { allowed, remaining, resetInSeconds } = await checkRateLimit(userEmail);
   if (!allowed) {
     return NextResponse.json(
       {
-        error: `Rate limit reached. You can convert 10 documents per hour. Try again in ${Math.ceil(resetInSeconds / 60)} minutes.`,
+        error: `Rate limit reached. You can convert 5 documents per hour. Try again in ${Math.ceil(resetInSeconds / 60)} minutes.`,
         remaining,
         resetInSeconds,
       },

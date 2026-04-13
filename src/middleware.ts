@@ -16,7 +16,8 @@ export function middleware(request: NextRequest) {
   const isProtectedApi =
     path.startsWith("/api/process-syllabus") ||
     path.startsWith("/api/admin") ||
-    path.startsWith("/api/user");
+    path.startsWith("/api/user") ||
+    path.startsWith("/api/feedback");
 
   if (isProtectedPage || isProtectedApi) {
     if (isAuthed) {
@@ -41,5 +42,6 @@ export const config = {
     "/api/process-syllabus",
     "/api/admin/:path*",
     "/api/user/:path*",
+    "/api/feedback",
   ],
 };

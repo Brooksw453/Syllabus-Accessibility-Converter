@@ -1,7 +1,7 @@
 import { isAdmin } from "./admin";
 
 const WINDOW_MS = 60 * 60 * 1000; // 1 hour
-const MAX_PER_WINDOW = 10;
+const MAX_PER_WINDOW = 5;
 
 // ---------------------------------------------------------------------------
 // Vercel KV (persistent) — used when KV_REST_API_URL is configured

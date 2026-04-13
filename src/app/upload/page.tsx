@@ -141,6 +141,10 @@ function UploadPageInner() {
   const [selectedFont, setSelectedFont] = useState<FontOption>("Calibri");
   const [userStatus, setUserStatus] = useState<UserStatus | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackRating, setFeedbackRating] = useState(0);
+  const [feedbackComment, setFeedbackComment] = useState("");
+  const [feedbackStatus, setFeedbackStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const previewRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
@@ -196,6 +200,29 @@ function UploadPageInner() {
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/");
+  }
+
+  async function handleFeedbackSubmit() {
+    if (feedbackRating < 1) return;
+    setFeedbackStatus("sending");
+    try {
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rating: feedbackRating, comment: feedbackComment }),
+      });
+      if (!res.ok) throw new Error("Failed to submit");
+      setFeedbackStatus("sent");
+    } catch {
+      setFeedbackStatus("error");
+    }
+  }
+
+  function closeFeedback() {
+    setFeedbackOpen(false);
+    setFeedbackRating(0);
+    setFeedbackComment("");
+    setFeedbackStatus("idle");
   }
 
   async function processOneFile(
@@ -709,12 +736,113 @@ function UploadPageInner() {
               <ThemeToggleInline />
               <button
                 type="button"
+                onClick={() => setFeedbackOpen(true)}
+                className="text-white/70 hover:text-white transition-colors underline underline-offset-2"
+                aria-label="Send feedback"
+              >
+                Feedback
+              </button>
+              <button
+                type="button"
                 onClick={handleLogout}
                 className="text-white/70 hover:text-white transition-colors underline underline-offset-2"
               >
                 Sign out
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Feedback modal */}
+      {feedbackOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) closeFeedback(); }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Send feedback"
+        >
+          <div className="bg-surface-card dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-md p-6">
+            {feedbackStatus === "sent" ? (
+              <div className="text-center py-4">
+                <p className="text-lg font-semibold text-text mb-2">Thank you for your feedback!</p>
+                <p className="text-sm text-muted mb-4">Your response has been recorded.</p>
+                <button
+                  type="button"
+                  onClick={closeFeedback}
+                  className="bg-primary text-white hover:bg-primary-dark px-5 py-2 rounded-lg text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                >
+                  Close
+                </button>
+              </div>
+            ) : (
+              <>
+                <h2 className="text-lg font-semibold text-text mb-1">Send Feedback</h2>
+                <p className="text-sm text-muted mb-4">How has your experience been with Document Ally?</p>
+
+                {/* Star rating */}
+                <fieldset className="mb-4">
+                  <legend className="text-sm font-medium text-text mb-2">Rating <span className="text-red-500">*</span></legend>
+                  <div className="flex gap-1" role="radiogroup" aria-label="Rating">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setFeedbackRating(star)}
+                        className={`w-10 h-10 text-2xl transition-colors rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                          star <= feedbackRating
+                            ? "text-amber-400"
+                            : "text-gray-300 dark:text-gray-600 hover:text-amber-200 dark:hover:text-amber-700"
+                        }`}
+                        role="radio"
+                        aria-checked={feedbackRating === star}
+                        aria-label={`${star} star${star !== 1 ? "s" : ""}`}
+                      >
+                        {star <= feedbackRating ? "\u2605" : "\u2606"}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+
+                {/* Comment */}
+                <label className="block mb-4">
+                  <span className="text-sm font-medium text-text">Comments <span className="text-muted font-normal">(optional)</span></span>
+                  <textarea
+                    value={feedbackComment}
+                    onChange={(e) => setFeedbackComment(e.target.value)}
+                    maxLength={1000}
+                    rows={3}
+                    placeholder="What could we improve? What do you like?"
+                    className="mt-1 block w-full rounded-lg border border-border bg-surface dark:bg-slate-900 text-text text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary resize-y"
+                  />
+                </label>
+
+                {feedbackStatus === "error" && (
+                  <p className="text-red-600 dark:text-red-400 text-sm mb-3" role="alert">
+                    Something went wrong. Please try again.
+                  </p>
+                )}
+
+                <div className="flex gap-3 justify-end">
+                  <button
+                    type="button"
+                    onClick={closeFeedback}
+                    className="px-4 py-2 text-sm text-muted hover:text-text transition-colors rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleFeedbackSubmit}
+                    disabled={feedbackRating < 1 || feedbackStatus === "sending"}
+                    className="bg-primary text-white hover:bg-primary-dark px-5 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                  >
+                    {feedbackStatus === "sending" ? "Sending..." : "Submit"}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -1030,6 +1158,17 @@ function UploadPageInner() {
               className="text-white dark:text-blue-300 hover:text-blue-100 dark:hover:text-blue-200 transition-colors underline underline-offset-2"
             >
               esdesigns.org
+            </a>
+          </p>
+          <p className="text-center text-xs text-white/80 dark:text-slate-400 mt-2">
+            <a
+              href="https://esdesigns.org/#/education/ally"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Licensing information for institutional use (opens in new tab)"
+              className="text-white dark:text-blue-300 hover:text-blue-100 dark:hover:text-blue-200 transition-colors underline underline-offset-2"
+            >
+              Interested in licensing this tool for unlimited institutional use?
             </a>
           </p>
         </div>
